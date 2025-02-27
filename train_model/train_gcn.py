@@ -99,8 +99,8 @@ best_params = None
 
 gcn_architecture = []
 
-def run_training(dataset):
-    with open(f'../data/{dataset}/graph_data.p', 'rb') as f:
+def run_training(dataset, concat_conv_layers, label):
+    with open(f'../data/{dataset}/graph_data_{label}.p', 'rb') as f:
         data_list = pickle.load(f)
 
     train_data = []
@@ -135,7 +135,7 @@ def run_training(dataset):
         model = GCN(
             input_dim=42,
             model_dim=model_dim,
-            concat_conv_layers=args.concat_conv_layers,
+            concat_conv_layers=concat_conv_layers,
             n_layers=n_gcn_layers,
             dropout_rate=dropout_rate,
             fc_hidden_dim=fc_hidden_dim,
@@ -165,6 +165,17 @@ def run_training(dataset):
                 best_val_roc = val_roc_auc
                 best_model_path = os.path.join(best_models_dir,
                                                f'best_model.pth')
+                torch.save({
+                    'model_state_dict': model.state_dict(),
+                    'input_dim': 42,
+                    'model_dim': model_dim,
+                    'dropout_rate': dropout_rate,
+                    'concat_conv_layers': concat_conv_layers,
+                    'n_layers': n_gcn_layers,
+                    'fc_hidden_dim': fc_hidden_dim,
+                    'num_fc_layers':  num_fc_layers
+                }, best_model_path)
+
                 torch.save(model.state_dict(), best_model_path)
                 logging.info(f'Saved best model with validation ROC AUC: {val_roc_auc:.4f}')
                 logging.info(
@@ -195,9 +206,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="A script demonstrating argparse with a boolean flag.")
     parser.add_argument("--concat_conv_layers", type=int, default=1, help="Enable or disable concatenation (default: True)")
     parser.add_argument("--dataset", choices=["cdk2"], default = "cdk2", required=False, help="Dataset choice.")
+    parser.add_argument("--label", choices=['class', 'activity'], default='class', required=False, help="Y label column")
     args = parser.parse_args()
 
-    dataset = args.dataset
-    run_training(dataset)
+    dataset, concat_conv_layers, label = args.dataset, args.concat_conv_layers, args.label
+    run_training(dataset, concat_conv_layers, label)
 
 # nohup python train_gcn.py --dataset 'cdk2' > "logs/cdk2_gcn/train_graph_cdk2_gcn.log" 2>&1 &

@@ -50,6 +50,7 @@ def get_fingerprint_with_bit_info(mol, radius=2, n_bits=2048):
     fp = AllChem.GetMorganFingerprintAsBitVect(mol, radius, nBits=n_bits, bitInfo=bit_info)
     return np.array(fp), bit_info
 
+
 def get_unique_atoms_from_top_features(top_features, bit_info):
     unique_atoms = set()
 
@@ -59,6 +60,7 @@ def get_unique_atoms_from_top_features(top_features, bit_info):
             for atom_tuple in atoms_in_feature:  # Some features map to multiple atoms
                 unique_atoms.update(atom_tuple)  # Add atoms to the set
     return list(unique_atoms)
+
 
 def score_match(mol, top_nodes):
     feature_counts = {"HBA": 0, "HBD": 0, "aromatic_1": 0, "aromatic_2": 0, "hydrophobic": 0}
