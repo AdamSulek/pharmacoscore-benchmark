@@ -122,10 +122,7 @@ def train_and_evaluate(dataset, label, df, test_df, device, tree_method):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="choose CPU or GPU")
-    parser.add_argument("--gpu", 
-                        type=int, 
-                        default=0,
-                        help="choose GPU or CPU")
+    parser.add_argument("--gpu", type=int, default=0, help="choose GPU or CPU")
     parser.add_argument("--dataset", choices=["cdk2"], default="cdk2", required=False, help="Dataset choice.")
     parser.add_argument("--label", choices=['class', 'activity'], default='class', required=False,
                         help="Y label column")
@@ -150,7 +147,7 @@ if __name__ == '__main__':
 
  
 # python train_xgb.py > train_xgb.log 2>&1 &
-# python train_xgb.py --dataset 'cdk2' --label 'activity'
+# python train_xgb.py --dataset 'cdk2' --label 'class'
 
 
 

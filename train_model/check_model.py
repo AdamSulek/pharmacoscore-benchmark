@@ -154,4 +154,4 @@ if __name__ == "__main__":
 
     check_model(test_df, model, c_model, model_hooks, validate_label)
 
-# python check_model.py --model 'MLP' --model_dataset 'cdk2' --validate_dataset 'decoy' --model_label "class" --validate_label 'y'
+# python check_model.py --model 'MLP' --model_dataset 'cdk2' --validate_dataset 'cdk2' --model_label "class" --validate_label 'class'

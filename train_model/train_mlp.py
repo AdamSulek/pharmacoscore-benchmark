@@ -15,11 +15,6 @@ from mlp_model import MLP
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# lr_values = [0.001, 0.0001, 0.00001]
-# batch_sizes = [16, 32, 64]
-# fc_layers = [3, 4, 5]
-# dropout_rates = [0.0, 0.15, 0.3]
-# fc_hidden_dims = [64, 128, 256]
 lr_values = [0.0001, 0.00001]
 batch_sizes = [16, 32, 64]
 fc_layers = [3, 4]

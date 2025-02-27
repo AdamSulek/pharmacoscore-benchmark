@@ -92,25 +92,6 @@ def test(model, loader, threshold=0.5):
 
     return accuracy, roc_auc, precision, recall, TP, FP, TN, FN
 
-def identify_influential_nodes(model, data, top_k=5):
-    model.eval()
-    data = data.to(device)
-    
-    output = model(data)
-    
-    model.zero_grad() 
-    output.backward()
-    
-    gradients = model.final_conv_grads  
-    node_activations = model.final_conv_acts
-   
-    node_importance = (gradients * node_activations).sum(dim=1)  
-    
-    _, top_indices = torch.topk(node_importance, top_k)
-    top_nodes = top_indices.cpu().numpy()  
-    
-    return top_nodes, node_importance.cpu().detach().numpy()
-
 
 best_val_roc = 0.0  
 best_model_state = None  
@@ -118,26 +99,17 @@ best_params = None
 
 gcn_architecture = []
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="A script demonstrating argparse with a boolean flag.")
-    parser.add_argument(
-        "--concat_conv_layers",
-        type=int,
-        default=1,
-        help="Enable or disable concatenation (default: True)"
-    )
-    args = parser.parse_args()
-    
-    with open('data/cdk2/graph_data.p', 'rb') as f:
+def run_training(dataset):
+    with open(f'../data/{dataset}/graph_data.p', 'rb') as f:
         data_list = pickle.load(f)
-        
+
     train_data = []
     val_data = []
     test_data = []
 
     for data in data_list:
         split_value = data.split
-        
+
         if split_value == 'train':
             train_data.append(data)
         elif split_value == 'val':
@@ -150,16 +122,16 @@ if __name__ == "__main__":
     num_negative = len(train_labels) - num_positive
     pos_weight = num_negative / num_positive
 
-    checkpoint_dir = f'checkpoints/cdk2/'
-    result_dir = f'results/cdk2/'
-    os.makedirs(result_dir, exist_ok=True)
+    best_models_dir = f'best_models/{dataset}/class/gcn'
+    os.makedirs(best_models_dir, exist_ok=True)
 
     for lr, batch_size, n_gcn_layers, model_dim, dropout_rate, fc_hidden_dim, num_fc_layers in param_grid:
-        logging.info(f"Training model with lr={lr}, batch_size={batch_size}, n_layers={n_gcn_layers}, model_dim={model_dim}, fc_hidden_dim={fc_hidden_dim}, num_fc_layers={num_fc_layers}, concat_conv_layers={args.concat_conv_layers}, dropout_rate={dropout_rate}")
+        logging.info(
+            f"Training model with lr={lr}, batch_size={batch_size}, n_layers={n_gcn_layers}, model_dim={model_dim}, fc_hidden_dim={fc_hidden_dim}, num_fc_layers={num_fc_layers}, concat_conv_layers={args.concat_conv_layers}, dropout_rate={dropout_rate}")
         train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
         val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=False)
         test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False)
-        
+
         model = GCN(
             input_dim=42,
             model_dim=model_dim,
@@ -169,38 +141,42 @@ if __name__ == "__main__":
             fc_hidden_dim=fc_hidden_dim,
             num_fc_layers=num_fc_layers
         ).to(device)
-        
+
         optimizer = optim.Adam(model.parameters(), lr=lr)
         criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(pos_weight).to(device))
-        
-        patience = 20  
-        best_val_roc_epoch = -1
+
+        patience = 20
+        best_val_roc = -1
         epochs_without_improvement = 0
 
         for epoch in range(100):
-            train_loss, train_acc, train_roc_auc, train_prec, train_rec, train_TP, train_FP, train_TN, train_FN = train(model, train_loader, optimizer, criterion, threshold=0.5)
+            train_loss, train_acc, train_roc_auc, train_prec, train_rec, train_TP, train_FP, train_TN, train_FN = train(
+                model, train_loader, optimizer, criterion, threshold=0.5)
             val_acc, val_roc_auc, val_prec, val_rec, val_TP, val_FP, val_TN, val_FN = test(model, val_loader)
 
-            logging.info(f'Epoch {epoch+1}: Train Loss {train_loss:.4f}, Train Accuracy {train_acc:.4f}, Train ROC AUC {train_roc_auc:.4f}, Train Precision {train_prec:.4f}, Train Recall {train_rec:.4f}')
-            logging.info(f'Val Accuracy {val_acc:.4f}, Val ROC AUC {val_roc_auc:.4f}, Val Precision {val_prec:.4f}, Val Recall {val_rec:.4f}')
+            logging.info(
+                f'Epoch {epoch + 1}: Train Loss {train_loss:.4f}, Train Accuracy {train_acc:.4f}, Train ROC AUC {train_roc_auc:.4f}, Train Precision {train_prec:.4f}, Train Recall {train_rec:.4f}')
+            logging.info(
+                f'Val Accuracy {val_acc:.4f}, Val ROC AUC {val_roc_auc:.4f}, Val Precision {val_prec:.4f}, Val Recall {val_rec:.4f}')
             logging.info(f'Train TP: {train_TP}, FP: {train_FP}, TN: {train_TN}, FN: {train_FN}')
             logging.info(f'Val TP: {val_TP}, FP: {val_FP}, TN: {val_TN}, FN: {val_FN}')
-            
+
             if val_roc_auc > best_val_roc:
                 best_val_roc = val_roc_auc
-                best_model_path = os.path.join(checkpoint_dir, f'model_split_concat_conv_layers_{args.concat_conv_layers}.pth')
-                os.makedirs(checkpoint_dir, exist_ok=True)
+                best_model_path = os.path.join(best_models_dir,
+                                               f'best_model.pth')
                 torch.save(model.state_dict(), best_model_path)
                 logging.info(f'Saved best model with validation ROC AUC: {val_roc_auc:.4f}')
-                logging.info(f"lr: {lr}, batch_size: {batch_size}, n_layers: {n_gcn_layers}, model_dim: {model_dim}, fc_hidden_dim: {fc_hidden_dim}, num_fc_layers: {num_fc_layers}")
-                epochs_without_improvement = 0    
+                logging.info(
+                    f"lr: {lr}, batch_size: {batch_size}, n_layers: {n_gcn_layers}, model_dim: {model_dim}, fc_hidden_dim: {fc_hidden_dim}, num_fc_layers: {num_fc_layers}")
+                epochs_without_improvement = 0
             else:
                 epochs_without_improvement += 1
-            
+
             if epochs_without_improvement >= patience:
-                logging.info(f'Early stopping at epoch {epoch+1} due to no improvement in validation ROC AUC.')
+                logging.info(f'Early stopping at epoch {epoch + 1} due to no improvement in validation ROC AUC.')
                 break
-        
+
         gcn_architecture.append({
             "lr": lr,
             "batch_size": batch_size,
@@ -212,84 +188,16 @@ if __name__ == "__main__":
             "model_path": best_model_path
         })
 
-        df_architecture = pd.DataFrame(gcn_architecture)
-        df_architecture.to_csv(os.path.join(result_dir, f'architecture_{args.concat_conv_layers}.csv'), index=False)
-    
-    best_model_entry = max(gcn_architecture, key=lambda x: x["val_roc_auc"]) 
-    best_model_path = best_model_entry["model_path"]
-    
-    if best_model_path:
-        logging.info(f"Loading best model from: {best_model_path}")
-        best_model = GCN(
-            input_dim=42,
-            model_dim=best_model_entry["model_dim"],
-            concat_conv_layers=args.concat_conv_layers,
-            n_layers=best_model_entry["n_layers"],
-            dropout_rate=dropout_rate,
-            fc_hidden_dim=best_model_entry["fc_hidden_dim"],
-            num_fc_layers=best_model_entry["num_fc_layers"], 
-            use_hooks=True
-        ).to(device)
-        
-        best_model.load_state_dict(torch.load(best_model_path))
-        best_model.eval()
 
-        test_acc, test_roc_auc, test_prec, test_rec, test_TP, test_FP, test_TN, test_FN = test(best_model, test_loader)
-        
-        total_correct = 0
-        total_correct_perturbed = 0
-        total_samples = 0
-        results = {"index": [], "label": [], "pred_proba": [], "pred_proba_mask": [], 
-                   "fidelity": [], "top_nodes": [], "importance_scores": []}
+    logging.info("Training completed!")
 
-        for i, test_sample in enumerate(test_data):
-            if i % 100 == 0:
-                logging.info(f"Processing test sample {i + 1}/{len(test_data)}")
-                
-            label = test_sample.label
-            test_sample = test_sample.to(device)
-            
-            top_nodes, importance_scores = identify_influential_nodes(best_model, test_sample)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="A script demonstrating argparse with a boolean flag.")
+    parser.add_argument("--concat_conv_layers", type=int, default=1, help="Enable or disable concatenation (default: True)")
+    parser.add_argument("--dataset", choices=["cdk2"], default = "cdk2", required=False, help="Dataset choice.")
+    args = parser.parse_args()
 
-            # Predict on Original Sample
-            with torch.no_grad():
-                original_logits = best_model(test_sample)
-                original_prediction = torch.sigmoid(original_logits).item()
-                original_label = 1 if original_prediction > 0.5 else 0
-                total_correct += int(original_label == label)
+    dataset = args.dataset
+    run_training(dataset)
 
-            # Perturbation (Zero Out Top Nodes)
-            modified_sample = test_sample.clone()
-            for node in top_nodes:
-                modified_sample.x[node] = torch.zeros_like(modified_sample.x[node])
-
-            # Predict on Perturbed Sample
-            with torch.no_grad():
-                perturbed_logits = best_model(modified_sample)
-                modified_prediction = torch.sigmoid(perturbed_logits).item()
-                perturbed_label = 1 if modified_prediction > 0.5 else 0
-                total_correct_perturbed += int(perturbed_label == label)
-
-            fidelity = abs(test_acc - (total_correct_perturbed / total_samples))
-
-            results["index"].append(i)
-            results["label"].append(label)
-            results["pred_proba"].append(original_prediction)
-            results["pred_proba_mask"].append(modified_prediction)
-            results["fidelity"].append(fidelity)
-            results["top_nodes"].append(top_nodes.tolist())
-            results["importance_scores"].append(importance_scores[top_nodes].tolist())
-            
-        df = pd.DataFrame(results)
-        df.to_csv(os.path.join(result_dir, f'fidelity_{args.concat_conv_layers}.csv'), index=False)
-
-        logging.info(f'Test Accuracy: {test_acc:.4f}, Test ROC AUC: {test_roc_auc:.4f}, Test Precision: {test_prec:.4f}, Test Recall: {test_rec:.4f}')
-        logging.info(f'Test TP: {test_TP}, FP: {test_FP}, TN: {test_TN}, FN: {test_FN}')
-    else:
-        logging.info("No valid TEST model was found!")
-        
-
-logging.info("Training completed!")
-
-
-# nohup python train_cdk2_gcn.py > "logs/cdk2_gcn/train_graph_cdk2_gcn.log" 2>&1 &
+# nohup python train_gcn.py --dataset 'cdk2' > "logs/cdk2_gcn/train_graph_cdk2_gcn.log" 2>&1 &
