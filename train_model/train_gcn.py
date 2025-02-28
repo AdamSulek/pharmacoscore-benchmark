@@ -7,7 +7,6 @@ import torch
 from sklearn.metrics import roc_auc_score, accuracy_score, precision_score, recall_score
 import numpy as np
 import itertools
-import pandas as pd
 import argparse
 import os
 import random
@@ -145,11 +144,11 @@ def run_training(dataset, concat_conv_layers, label):
         optimizer = optim.Adam(model.parameters(), lr=lr)
         criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(pos_weight).to(device))
 
-        patience = 20
+        patience = 10
         best_val_roc = -1
         epochs_without_improvement = 0
 
-        for epoch in range(100):
+        for epoch in range(25):
             train_loss, train_acc, train_roc_auc, train_prec, train_rec, train_TP, train_FP, train_TN, train_FN = train(
                 model, train_loader, optimizer, criterion, threshold=0.5)
             val_acc, val_roc_auc, val_prec, val_rec, val_TP, val_FP, val_TN, val_FN = test(model, val_loader)
@@ -176,7 +175,6 @@ def run_training(dataset, concat_conv_layers, label):
                     'num_fc_layers':  num_fc_layers
                 }, best_model_path)
 
-                torch.save(model.state_dict(), best_model_path)
                 logging.info(f'Saved best model with validation ROC AUC: {val_roc_auc:.4f}')
                 logging.info(
                     f"lr: {lr}, batch_size: {batch_size}, n_layers: {n_gcn_layers}, model_dim: {model_dim}, fc_hidden_dim: {fc_hidden_dim}, num_fc_layers: {num_fc_layers}")
@@ -212,4 +210,4 @@ if __name__ == "__main__":
     dataset, concat_conv_layers, label = args.dataset, args.concat_conv_layers, args.label
     run_training(dataset, concat_conv_layers, label)
 
-# nohup python train_gcn.py --dataset 'cdk2' > "logs/cdk2_gcn/train_graph_cdk2_gcn.log" 2>&1 &
+# nohup python train_gcn.py --dataset 'cdk2' --label 'class' > "logs/cdk2_gcn/train_graph_cdk2_gcn.log" 2>&1 &

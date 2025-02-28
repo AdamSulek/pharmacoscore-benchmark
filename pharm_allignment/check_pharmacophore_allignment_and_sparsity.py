@@ -22,21 +22,29 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def load_gcn_model(dataset):
-    model = GCN(input_dim=42, model_dim=512, dropout_rate=0.0, n_layers=3,
-                num_fc_layers=2, fc_hidden_dim=128, concat_conv_layers=1, use_hooks=True).to(device)
-    model.load_state_dict(torch.load(f"../train_model/best_models/{dataset}/class/gcn/best_model.pth", map_location=torch.device('cpu')))
+    checkpoint = torch.load(f"../train_model/best_models/{dataset}/class/gcn/best_model.pth", weights_only=False)
+    input_dim = checkpoint['input_dim']
+    model_dim = checkpoint['model_dim']
+    dropout_rate = checkpoint['dropout_rate']
+    n_layers = checkpoint['n_layers']
+    num_fc_layers = checkpoint['num_fc_layers']
+    fc_hidden_dim = checkpoint['fc_hidden_dim']
+
+    model = GCN(input_dim=input_dim, model_dim=model_dim, dropout_rate=dropout_rate, n_layers=n_layers,
+                num_fc_layers=num_fc_layers, fc_hidden_dim=fc_hidden_dim,
+                concat_conv_layers=1, use_hooks=True).to(device)
+    model.load_state_dict(checkpoint['model_state_dict'])
+
     return model
 
 def load_mlp_model(dataset):
     checkpoint = torch.load(f"../train_model/best_models/{dataset}/class/mlp/best_model.pth")
-
     hidden_dim = checkpoint['hidden_dim']
     num_hidden_layers = checkpoint['num_hidden_layers']
     dropout_rate = checkpoint['dropout_rate']
 
     model = MLP(hidden_dim=hidden_dim, num_hidden_layers=num_hidden_layers, dropout_rate=dropout_rate)
     model.load_state_dict(checkpoint['model_state_dict'])
-
     return model
 
 def load_rf_model(dataset):
@@ -45,37 +53,29 @@ def load_rf_model(dataset):
 def load_xgb_model(dataset):
     return joblib.load(f"../train_model/best_models/{dataset}/class/xgboost/best_model.joblib")
 
+
 def get_fingerprint_with_bit_info(mol, radius=2, n_bits=2048):
     bit_info = {}
     fp = AllChem.GetMorganFingerprintAsBitVect(mol, radius, nBits=n_bits, bitInfo=bit_info)
     return np.array(fp), bit_info
 
-
 def get_unique_atoms_from_top_features(top_features, bit_info):
     unique_atoms = set()
-
     for feature in top_features:
-        if feature in bit_info:  # Ensure feature exists in bit_info
+        if feature in bit_info:
             atoms_in_feature = bit_info[feature]
-            for atom_tuple in atoms_in_feature:  # Some features map to multiple atoms
-                unique_atoms.update(atom_tuple)  # Add atoms to the set
+            for atom_tuple in atoms_in_feature:
+                unique_atoms.update(atom_tuple)
     return list(unique_atoms)
-
 
 def score_match(mol, top_nodes):
     feature_counts = {"HBA": 0, "HBD": 0, "aromatic_1": 0, "aromatic_2": 0, "hydrophobic": 0}
-
     for node in top_nodes:
-        if node == mol['HBA_label']:
-            feature_counts["HBA"] = 1
-        if node == mol['HBD_label']:
-            feature_counts["HBD"] = 1
-        if node in mol['aromatic_1_label']:
-            feature_counts["aromatic_1"] = 1
-        if node in mol['aromatic_2_label']:
-            feature_counts["aromatic_2"] = 1
-        if node in mol['hydrophobic_label_modified']:
-            feature_counts["hydrophobic"] = 1
+        if node == mol['HBA_label']: feature_counts["HBA"] = 1
+        if node == mol['HBD_label']: feature_counts["HBD"] = 1
+        if node in mol['aromatic_1_label']: feature_counts["aromatic_1"] = 1
+        if node in mol['aromatic_2_label']: feature_counts["aromatic_2"] = 1
+        if node in mol['hydrophobic_label_modified']: feature_counts["hydrophobic"] = 1
     return feature_counts
 
 def compute_saliency_map_mlp(model, data):
@@ -332,10 +332,8 @@ if __name__ == "__main__":
 
     pharm_labels = pd.read_parquet(f"../data/{dataset}/pharmacophore_labels.parquet")
 
-    os.makedirs(f"results/{dataset}", exist_ok=True)
-
     if c_model.startswith('GCN'):
-        with open(f'../data/{dataset}/graph_data.p', 'rb') as f:
+        with open(f'../data/{dataset}/graph_data_class.p', 'rb') as f:
             df = pickle.load(f)
         test_data = [data for data in df if data.split == 'test']
     else:
@@ -369,4 +367,4 @@ if __name__ == "__main__":
     logging.info(f"Checking {args.model} \n Feature Mean Scores: {feature_means}")
     logging.info(f"Sparsity: {sparsity}")
 
-# python check_pharmacophore_allignment_and_sparsity.py --model 'RF' --dataset 'cdk2'
+# python check_pharmacophore_allignment_and_sparsity.py --model 'GCN_VG' --dataset 'cdk2'

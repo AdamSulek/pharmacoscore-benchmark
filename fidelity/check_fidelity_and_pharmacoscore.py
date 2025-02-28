@@ -12,6 +12,8 @@ import torch
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
+from sklearn.metrics import accuracy_score
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'train_model')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -21,6 +23,18 @@ from mlp_model import MLP
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 fingerprint_col = 'ECFP_2'
+
+def count_fidelity(fidelity_df):
+    y_true = fidelity_df[f"label"].values
+    y_pred = (fidelity_df[f"pred_proba"] >= 0.5).astype(int)  # Binarize predictions
+    y_pred_mask = (fidelity_df[f"pred_proba_mask"] >= 0.5).astype(int)  # Binarize masked predictions
+
+    accuracy = accuracy_score(y_true, y_pred)
+    masked_accuracy = accuracy_score(y_true, y_pred_mask)
+
+    fidelity = accuracy - masked_accuracy
+
+    return fidelity, accuracy, masked_accuracy
 
 def get_top_5_indices(shap_values):
     top_5_indices = np.argsort(shap_values)[-5:]
@@ -43,7 +57,6 @@ def gen_X_fingerprint(df, radius, fingerprint_size=2048):
         bit_info_list.append(bit_info)
 
     return X_array, bit_info_list
-
 
 def load_gcn_model(use_hooks):
     checkpoint = torch.load(f"../train_model/best_models/{dataset}/{model_label}/mlp/best_model.pth")
@@ -134,7 +147,7 @@ def add_model_predictions_and_atom_importance_to_df(df, model, model_name, label
             with torch.no_grad():
                 original_prediction = torch.sigmoid(model(test_sample)).cpu().item()
 
-            top_nodes, node_importance = identify_influential_nodes_gcn_gradcam(model_hooks, modified_sample)
+            top_nodes, node_importance = identify_influential_nodes_gcn_gradcam(model, modified_sample)
 
             df_result_data.append(node_importance)
 
@@ -158,7 +171,6 @@ def add_model_predictions_and_atom_importance_to_df(df, model, model_name, label
         explainer = shap.DeepExplainer(model, background)
         shap_values = explainer.shap_values(torch.tensor(X_test, dtype=torch.float32).to(device),
                                             check_additivity=False)
-
 
         for i in range(shap_values.shape[0]):
             row = df.iloc[i]
@@ -338,14 +350,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
     c_model, dataset, model_label, label = args.model, args.dataset, args.model_label, args.label
 
-
     if c_model.startswith('GCN'):
         with open(f'../data/{dataset}/graph_data_{model_label}.p', 'rb') as f:
             df = pickle.load(f)
-        test_data = [data for data in df if data.split == 'test']
+        test_df = [data for data in df if data.split == 'test']
     else:
         df = pd.read_parquet(f"../data/{dataset}/raw.parquet")
-        test_df = df[(df['split'] == 'test') & (df['class'] == 1)].reset_index(drop=True)
+        test_df = df[(df['split'] == 'test')].reset_index(drop=True)
 
     if c_model == 'GCN':
         model = load_gcn_model(use_hooks=True)  # Load a version with hooks for Grad-CAM
@@ -369,16 +380,22 @@ if __name__ == "__main__":
         model = load_xgb_model(dataset, model_label)
 
 
-    fidelity_results, pharmacoscore_results = (
-        add_model_predictions_and_atom_importance_to_df(test_df, model, c_model, model_hooks, label))
+    fidelity_results, atom_importance_results = (
+        add_model_predictions_and_atom_importance_to_df(test_df, model, c_model, label))
+
+    fidelity, accuracy, masked_accuracy = count_fidelity(fidelity_results)
+    logging.info(f"Fidelity: {fidelity}")
+    logging.info(f"Accuracy: {accuracy}")
+    logging.info(f"Masked Accuracy: {masked_accuracy}")
 
     output_dir = f"results/{dataset}/prediction"
     os.makedirs(output_dir, exist_ok=True)
     output_file_name = f"{output_dir}/{c_model}_{model_label}_{label}_pred_mask"
 
     fidelity_results.to_csv(f"{output_file_name}_fidelity.csv", index=False)
-    pharmacoscore_results.to_parquet(f"{output_file_name}_pharmacoscore.parquet")
+    atom_importance_results.to_parquet(f"{output_file_name}_atom_importance.parquet")
     logging.info(f"Test dataset with {c_model} predictions saved to {output_file_name}")
+    logging.info(f"Count fidelity: {output_file_name}")
 
 
-# python check_model_with_fidelity.py --model "MLP_VG" --model_label 'class' --label 'class'
+# python check_fidelity_and_pharmacoscore.py --model "RF" --model_label 'class' --label 'class'

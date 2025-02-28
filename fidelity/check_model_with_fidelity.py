@@ -90,10 +90,8 @@ def load_mlp_model(dataset, model_label):
 
     return model
 
-
 def load_rf_model(dataset, model_label):
     return joblib.load(f"../train_model/best_models/{dataset}/{model_label}/random_forest/best_model.joblib")
-
 
 def load_xgb_model(dataset, model_label):
     return joblib.load(f"../train_model/best_models/{dataset}/{model_label}/xgboost/best_model.joblib")
