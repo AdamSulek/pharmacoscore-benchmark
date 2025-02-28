@@ -282,15 +282,15 @@ def add_model_predictions_and_atom_importance_to_df(df, model, model_name, label
             for feature in top_bits:
                 modified_sample[feature] = 1 - modified_sample[feature]
 
-    elif model_name in ['RF', 'XGB']:
+    elif model_name == 'XGB':
         explainer = shap.TreeExplainer(model)
         X_test = np.stack(df[fingerprint_col].values).astype(np.float32)
 
         y_proba = model.predict_proba(X_test)[:, 1]
 
         shap_values = explainer.shap_values(X_test, check_additivity=False)
-        if model_name == 'RF':
-            shap_values = shap_values[1]
+        # if model_name == 'RF':
+        #     shap_values = shap_values[1]
 
         df_result_data = []
 
@@ -298,7 +298,8 @@ def add_model_predictions_and_atom_importance_to_df(df, model, model_name, label
             row = df.iloc[i]
             chembl_id = row["chembl_id"]
             bit_info = row["bit_info"]
-            molecule_shap_values = shap_values[i]
+            molecule_shap_values = [sv[1] for sv in shap_values[i]]
+            print(molecule_shap_values)
 
             atom_data = {}
 
@@ -323,6 +324,54 @@ def add_model_predictions_and_atom_importance_to_df(df, model, model_name, label
         logging.info(f"X_test_masked: {X_test_masked.shape}")
         for i, indices in enumerate(top_positive_indices):
             X_test_masked[i, indices] = 1 - X_test_masked[i, indices]  # Flip bits
+
+        y_proba_masked = model.predict_proba(X_test_masked)[:, 1]
+
+        y_proba_list.extend(y_proba.tolist())
+        y_proba_mask_list.extend(y_proba_masked.tolist())
+
+        df_result_atom_importance = pd.DataFrame(df_result_data)
+
+    elif model_name == 'RF':
+        explainer = shap.TreeExplainer(model)
+        X_test = np.stack(df[fingerprint_col].values).astype(np.float32)
+
+        y_proba = model.predict_proba(X_test)[:, 1]
+
+        shap_values = explainer.shap_values(X_test, check_additivity=False)
+
+        df_result_data = []
+
+        for i in range(shap_values.shape[0]):
+            row = df.iloc[i]
+            chembl_id = row["chembl_id"]
+            bit_info = row["bit_info"]
+            molecule_shap_values = [float(sv[1]) for sv in shap_values[i]]
+            print(molecule_shap_values)
+
+            atom_data = {}
+
+            for bit, atom_radius_list in bit_info.items():
+                for (atom_idx, radius) in atom_radius_list:
+                    if atom_idx not in atom_data:
+                        atom_data[atom_idx] = {"shap_values": [], "radiuses": []}
+                    atom_data[atom_idx]["shap_values"].append(molecule_shap_values[bit])
+                    atom_data[atom_idx]["radiuses"].append(radius)
+
+            for atom_idx, data in atom_data.items():
+                df_result_data.append({
+                    "chembl_id": chembl_id,
+                    "atom_index": atom_idx,
+                    "shap_values": data["shap_values"],
+                    "radiuses": data["radiuses"]
+                })
+
+        X_test_masked = X_test.copy()
+        logging.info(f"X_test_masked: {X_test_masked.shape}")
+        for i in range(shap_values.shape[0]):
+            molecule_shap_values = [float(sv[1]) for sv in shap_values[i]]
+            top_positive_indices = get_top_5_indices(molecule_shap_values)
+            X_test_masked[i, top_positive_indices] = 1 - X_test_masked[i, top_positive_indices]  # Flip bits
 
         y_proba_masked = model.predict_proba(X_test_masked)[:, 1]
 

@@ -367,4 +367,4 @@ if __name__ == "__main__":
     logging.info(f"Checking {args.model} \n Feature Mean Scores: {feature_means}")
     logging.info(f"Sparsity: {sparsity}")
 
-# python check_pharmacophore_allignment_and_sparsity.py --model 'GCN_VG' --dataset 'cdk2'
+# python check_pharmacophore_allignment_and_sparsity.py --model 'RF' --dataset 'cdk2'
