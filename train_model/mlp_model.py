@@ -4,15 +4,14 @@ import logging
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-
 class MLP(nn.Module):
     def __init__(
-            self,
-            in_features=2048,
-            hidden_dim=256,
-            num_hidden_layers=3,
-            dropout_rate=0.5,
-            out_features=1
+        self,
+        in_features=2048,
+        hidden_dim=256,
+        num_hidden_layers=3,
+        dropout_rate=0.5,
+        out_features=1
     ):
         super(MLP, self).__init__()
 

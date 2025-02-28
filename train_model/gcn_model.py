@@ -7,7 +7,17 @@ import torch
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 class GCN(torch.nn.Module):
-    def __init__(self, input_dim, model_dim, n_layers=3, concat_conv_layers=True, use_hooks=False, dropout_rate=0.5, fc_hidden_dim=64, num_fc_layers=2):
+    def __init__(
+            self,
+            input_dim,
+            model_dim,
+            n_layers=3,
+            concat_conv_layers=True,
+            use_hooks=False,
+            dropout_rate=0.5,
+            fc_hidden_dim=64,
+            num_fc_layers=2
+    ):
         super(GCN, self).__init__()
         
         self.conv_layers = nn.ModuleList()

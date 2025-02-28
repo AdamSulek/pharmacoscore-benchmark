@@ -24,22 +24,24 @@ def seed_everything(seed):
 
 seed_everything(123)
 
-lr_values = [0.001, 0.0001]#, 0.00001]  
-batch_sizes = [32]#16, 32, 64]  
-conv_layers = [3, 4]  
-model_dims = [512]#128, 256, 512]  
-dropout_rate = [0.0, 0.1]#, 0.2, 0.5] 
-fc_hidden_dims = [128, 256] #64, 
-num_fc_layers = [1, 2]#, 3]  
+PARAM_GRID = {
+    "lr_values": [0.001, 0.0001],  # Fixed to your new lr values
+    "batch_sizes": [32],  # Using batch_size 32
+    "conv_layers": [3, 4],  # Conv layers (number of GCN layers)
+    "model_dims": [512],  # Model dimension, fixed to 512
+    "dropout_rate": [0.0, 0.1],  # Dropout rates
+    "fc_hidden_dim": [128, 256],  # FC hidden layers dimensions
+    "num_fc_layers": [1, 2]  # Number of FC layers
+}
 
-param_grid = list(itertools.product(lr_values, batch_sizes, conv_layers, model_dims, dropout_rate, fc_hidden_dims, num_fc_layers))
+PARAM_COMBINATIONS = list(itertools.product(*PARAM_GRID.values()))
+PARAM_KEYS = list(PARAM_GRID.keys())
 
 def train(model, train_loader, optimizer, criterion, threshold=0.5):
     model.train()
     total_loss = 0
-    all_labels = []
-    all_predictions = []
-    
+    all_labels, all_predictions = [], []
+
     for data in train_loader:
         data = data.to(device)
         optimizer.zero_grad()
@@ -49,27 +51,17 @@ def train(model, train_loader, optimizer, criterion, threshold=0.5):
         optimizer.step()
 
         total_loss += loss.item()
-        
         probabilities = torch.sigmoid(out)
         all_labels.extend(data.label.cpu().numpy())
         all_predictions.extend(probabilities.detach().cpu().numpy())
     
-    accuracy = accuracy_score(all_labels, (np.array(all_predictions) > threshold).astype(int))
     roc_auc = roc_auc_score(all_labels, all_predictions)
-    precision = precision_score(all_labels, (np.array(all_predictions) > threshold).astype(int))
-    recall = recall_score(all_labels, (np.array(all_predictions) > threshold).astype(int))
 
-    TP = ((np.array(all_labels) == 1) & (np.array(all_predictions) > threshold)).sum()
-    FP = ((np.array(all_labels) == 0) & (np.array(all_predictions) > threshold)).sum()
-    TN = ((np.array(all_labels) == 0) & (np.array(all_predictions) <= threshold)).sum()
-    FN = ((np.array(all_labels) == 1) & (np.array(all_predictions) <= threshold)).sum()
-    
-    return total_loss / len(train_loader), accuracy, roc_auc, precision, recall, TP, FP, TN, FN
+    return total_loss / len(train_loader), roc_auc
 
 def test(model, loader, threshold=0.5):
     model.eval()
-    all_labels = []
-    all_predictions = []
+    all_labels, all_predictions = [], []
     
     with torch.no_grad():
         for data in loader:
@@ -79,43 +71,28 @@ def test(model, loader, threshold=0.5):
             all_labels.extend(data.label.cpu().numpy())
             all_predictions.extend(probabilities.detach().cpu().numpy().flatten())
     
-    accuracy = accuracy_score(all_labels, (np.array(all_predictions) > threshold).astype(int))
     roc_auc = roc_auc_score(all_labels, all_predictions)
-    precision = precision_score(all_labels, (np.array(all_predictions) > threshold).astype(int))
-    recall = recall_score(all_labels, (np.array(all_predictions) > threshold).astype(int))
 
-    TP = ((np.array(all_labels) == 1) & (np.array(all_predictions) > threshold)).sum()
-    FP = ((np.array(all_labels) == 0) & (np.array(all_predictions) > threshold)).sum()
-    TN = ((np.array(all_labels) == 0) & (np.array(all_predictions) <= threshold)).sum()
-    FN = ((np.array(all_labels) == 1) & (np.array(all_predictions) <= threshold)).sum()
+    return roc_auc
 
-    return accuracy, roc_auc, precision, recall, TP, FP, TN, FN
-
-
-best_val_roc = 0.0  
-best_model_state = None  
-best_params = None
-
-gcn_architecture = []
-
-def run_training(dataset, concat_conv_layers, label):
+def load_data(dataset, label):
     with open(f'../data/{dataset}/graph_data_{label}.p', 'rb') as f:
         data_list = pickle.load(f)
 
-    train_data = []
-    val_data = []
-    test_data = []
+    train_data, val_data, test_data = [], [], []
 
     for data in data_list:
-        split_value = data.split
-
-        if split_value == 'train':
+        if data.split == 'train':
             train_data.append(data)
-        elif split_value == 'val':
+        elif data.split == 'val':
             val_data.append(data)
-        elif split_value == 'test':
+        elif data.split == 'test':
             test_data.append(data)
 
+    return train_data, val_data, test_data
+
+def run_training(dataset, concat_conv_layers, label):
+    train_data, val_data, test_data = load_data(dataset, label)
     train_labels = [e.label for e in train_data]
     num_positive = sum(train_labels)
     num_negative = len(train_labels) - num_positive
@@ -123,10 +100,12 @@ def run_training(dataset, concat_conv_layers, label):
 
     best_models_dir = f'best_models/{dataset}/class/gcn'
     os.makedirs(best_models_dir, exist_ok=True)
+    best_val_roc = -1
 
-    for lr, batch_size, n_gcn_layers, model_dim, dropout_rate, fc_hidden_dim, num_fc_layers in param_grid:
-        logging.info(
-            f"Training model with lr={lr}, batch_size={batch_size}, n_layers={n_gcn_layers}, model_dim={model_dim}, fc_hidden_dim={fc_hidden_dim}, num_fc_layers={num_fc_layers}, concat_conv_layers={args.concat_conv_layers}, dropout_rate={dropout_rate}")
+    for lr, batch_size, n_gcn_layers, model_dim, dropout_rate, fc_hidden_dim, num_fc_layers in PARAM_COMBINATIONS:
+        logging.info(f"Training model with lr={lr}, batch_size={batch_size}, n_layers={n_gcn_layers}, "
+                     f"model_dim={model_dim}, dropout_rate={dropout_rate}, concat_conv_layers={concat_conv_layers}")
+
         train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
         val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=False)
         test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False)
@@ -145,25 +124,17 @@ def run_training(dataset, concat_conv_layers, label):
         criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(pos_weight).to(device))
 
         patience = 20
-        best_val_roc = -1
         epochs_without_improvement = 0
 
         for epoch in range(100):
-            train_loss, train_acc, train_roc_auc, train_prec, train_rec, train_TP, train_FP, train_TN, train_FN = train(
-                model, train_loader, optimizer, criterion, threshold=0.5)
-            val_acc, val_roc_auc, val_prec, val_rec, val_TP, val_FP, val_TN, val_FN = test(model, val_loader)
+            train_loss, train_roc_auc = train(model, train_loader, optimizer, criterion, threshold=0.5)
+            val_roc_auc = test(model, val_loader)
 
-            logging.info(
-                f'Epoch {epoch + 1}: Train Loss {train_loss:.4f}, Train Accuracy {train_acc:.4f}, Train ROC AUC {train_roc_auc:.4f}, Train Precision {train_prec:.4f}, Train Recall {train_rec:.4f}')
-            logging.info(
-                f'Val Accuracy {val_acc:.4f}, Val ROC AUC {val_roc_auc:.4f}, Val Precision {val_prec:.4f}, Val Recall {val_rec:.4f}')
-            logging.info(f'Train TP: {train_TP}, FP: {train_FP}, TN: {train_TN}, FN: {train_FN}')
-            logging.info(f'Val TP: {val_TP}, FP: {val_FP}, TN: {val_TN}, FN: {val_FN}')
+            logging.info(f'Epoch {epoch + 1}: Train Loss {train_loss:.4f}, Train ROC AUC {train_roc_auc:.4f}')
 
             if val_roc_auc > best_val_roc:
                 best_val_roc = val_roc_auc
-                best_model_path = os.path.join(best_models_dir,
-                                               f'best_model.pth')
+                best_model_path = os.path.join(best_models_dir, f'best_model.pth')
                 torch.save({
                     'model_state_dict': model.state_dict(),
                     'input_dim': 42,
@@ -176,8 +147,6 @@ def run_training(dataset, concat_conv_layers, label):
                 }, best_model_path)
 
                 logging.info(f'Saved best model with validation ROC AUC: {val_roc_auc:.4f}')
-                logging.info(
-                    f"lr: {lr}, batch_size: {batch_size}, n_layers: {n_gcn_layers}, model_dim: {model_dim}, fc_hidden_dim: {fc_hidden_dim}, num_fc_layers: {num_fc_layers}")
                 epochs_without_improvement = 0
             else:
                 epochs_without_improvement += 1
@@ -186,28 +155,16 @@ def run_training(dataset, concat_conv_layers, label):
                 logging.info(f'Early stopping at epoch {epoch + 1} due to no improvement in validation ROC AUC.')
                 break
 
-        gcn_architecture.append({
-            "lr": lr,
-            "batch_size": batch_size,
-            "n_layers": n_gcn_layers,
-            "model_dim": model_dim,
-            "fc_hidden_dim": fc_hidden_dim,
-            "num_fc_layers": num_fc_layers,
-            "val_roc_auc": best_val_roc,
-            "model_path": best_model_path
-        })
-
-
     logging.info("Training completed!")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="A script demonstrating argparse with a boolean flag.")
-    parser.add_argument("--concat_conv_layers", type=int, default=1, help="Enable or disable concatenation (default: True)")
-    parser.add_argument("--dataset", choices=["cdk2"], default = "cdk2", required=False, help="Dataset choice.")
-    parser.add_argument("--label", choices=['class', 'activity'], default='class', required=False, help="Y label column")
+    parser = argparse.ArgumentParser(description="Training a GCN model with hyperparameter tuning.")
+    parser.add_argument("--concat_conv_layers", type=int, default=1, help="Enable or disable concatenation of conv layers")
+    parser.add_argument("--dataset", choices=["cdk2"], default="cdk2", required=False, help="Dataset choice")
+    parser.add_argument("--label", choices=['class', 'activity'], default='class', required=False, help="Label column")
     args = parser.parse_args()
 
-    dataset, concat_conv_layers, label = args.dataset, args.concat_conv_layers, args.label
-    run_training(dataset, concat_conv_layers, label)
+    run_training(args.dataset, args.concat_conv_layers, args.label)
+
 
 # nohup python train_gcn.py --dataset 'cdk2' --label 'class' > "logs/cdk2_gcn/train_graph_cdk2_gcn.log" 2>&1 &

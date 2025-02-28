@@ -31,21 +31,6 @@ PARAM_KEYS = list(PARAM_GRID.keys())
 
 
 def train_and_evaluate(dataset, label, df, test_df, tree_method, fingerprint_col = "ECFP_2"):
-    """
-    Train and evaluate an XGBoost model for binary classification based on ROC-AUC.
-
-    Args:
-        df (DataFrame): Training and validation dataset.
-        test_df (DataFrame): Test dataset.
-        device (str): Device to use for training ('gpu' or 'cpu').
-        tree_method (str): XGBoost tree method.
-        fingerprint (str): Column name containing molecular fingerprints.
-        activity_column (str): Column name for the binary target variable.
-
-    Returns:
-        None
-    """
-
     best_model, best_roc_auc, best_params = None, 0, None
 
     train_df, val_df = df[df['split'] == 'train'], df[df['split'] == 'val']
