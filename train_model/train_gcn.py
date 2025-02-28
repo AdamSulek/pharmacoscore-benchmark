@@ -144,11 +144,11 @@ def run_training(dataset, concat_conv_layers, label):
         optimizer = optim.Adam(model.parameters(), lr=lr)
         criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(pos_weight).to(device))
 
-        patience = 10
+        patience = 20
         best_val_roc = -1
         epochs_without_improvement = 0
 
-        for epoch in range(25):
+        for epoch in range(100):
             train_loss, train_acc, train_roc_auc, train_prec, train_rec, train_TP, train_FP, train_TN, train_FN = train(
                 model, train_loader, optimizer, criterion, threshold=0.5)
             val_acc, val_roc_auc, val_prec, val_rec, val_TP, val_FP, val_TN, val_FN = test(model, val_loader)
