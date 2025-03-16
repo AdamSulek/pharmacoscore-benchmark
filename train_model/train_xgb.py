@@ -71,8 +71,8 @@ def train_and_evaluate(dataset, label, df, test_df, tree_method, fingerprint_col
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Train XGBoost model")
     parser.add_argument("--gpu", type=int, default=0, help="Use GPU (1) or CPU (0)")
-    parser.add_argument("--dataset", choices=["cdk2"], default="cdk2", help="Dataset choice")
-    parser.add_argument("--label", choices=['class', 'activity'], default='class', help="Target column")
+    parser.add_argument("--dataset", choices=["ampcc", "cdk2"], default="cdk2", help="Dataset choice")
+    parser.add_argument("--label", choices=['class', 'activity','y'], default='class', help="Target column")
 
     args = parser.parse_args()
     dataset, label, gpu = args.dataset, args.label, args.gpu
@@ -86,7 +86,7 @@ if __name__ == '__main__':
                        tree_method="gpu_hist" if gpu == 1 else "hist")
     logging.info("Done!")
 
-# nohup python train_xgb.py --dataset 'cdk2' --label 'class' > train_xgb.log 2>&1 &
+# nohup python train_xgb.py --dataset 'ampcc' --label 'y' > train_xgb.log 2>&1 &
 
 
 
