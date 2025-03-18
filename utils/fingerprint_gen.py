@@ -62,8 +62,10 @@ def modify_parquet(dataset):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description="Modify parquet file with different fingerprint smiles representation.")
-    parser.add_argument("--dataset", choices=['ampcc', 'cdk2', 'cdktest', 'decoy'], default="cdk2", required=False,
+    parser.add_argument("--dataset", choices=['ampc', 'cdk2', 'cdktest', 'decoy'], default="cdk2", required=False,
                         help="Dataset choice.")
     args = parser.parse_args()
     dataset = args.dataset
     modify_parquet(dataset)
+
+#  python fingerprint_gen.py --dataset 'ampc'
