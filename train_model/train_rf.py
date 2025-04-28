@@ -80,8 +80,8 @@ def train_and_evaluate(dataset, label, dataset_splits, fingerprint_col="ECFP_2")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Train Random Forest model")
-    parser.add_argument("--dataset", choices=["cdk2"], default="cdk2", help="Dataset choice")
-    parser.add_argument("--label", choices=["class", "activity"], default="class", help="Target column")
+    parser.add_argument("--dataset", choices=["ampc", "cdk2"], default="cdk2", help="Dataset choice")
+    parser.add_argument("--label", choices=["y", "class", "activity"], default="class", help="Target column")
 
     args = parser.parse_args()
     dataset, label = args.dataset, args.label
@@ -93,4 +93,4 @@ if __name__ == '__main__':
 
     logging.info("Done!")
 
-# nohup python train_rf.py --dataset 'cdk2' --label 'class' > train_rf.log 2>&1 &
+# nohup python train_rf.py --dataset 'ampc' --label 'y' > train_rf.log 2>&1 &

@@ -127,11 +127,11 @@ if __name__ == "__main__":
         parser = argparse.ArgumentParser(description="Check model metrics on test split from dataset.")
         parser.add_argument("--model", type=str, choices=['GCN', 'MLP', 'RF', 'XGB'], required=True,
                             help="Model type to load and generate predictions.")
-        parser.add_argument("--model_dataset", choices=["cdk2"], default="cdk2", required=True,
+        parser.add_argument("--model_dataset", choices=["ampc", "cdk2"], default="cdk2", required=True,
                             help="Dataset model was trained on.")
-        parser.add_argument("--validate_dataset", choices=["cdk2", "cdktest", "decoy"], default="cdk2", required=True,
+        parser.add_argument("--validate_dataset", choices=["ampc", "cdk2", "cdktest", "decoy"], default="cdk2", required=True,
                             help="Dataset to check model label.")
-        parser.add_argument("--model_label", choices=['class', 'activity'], default='class', required=True,
+        parser.add_argument("--model_label", choices=['y', 'class', 'activity'], default='class', required=True,
                             help="Label model was trained on.")
         parser.add_argument("--validate_label", choices=['class', 'activity', 'y'], default='class', required=True,
                             help="Label to check model on.")
@@ -157,4 +157,4 @@ if __name__ == "__main__":
 
     check_model(test_df, model, c_model, validate_label)
 
-# python check_model.py --model 'MLP' --model_dataset 'cdk2' --validate_dataset 'cdk2' --model_label "class" --validate_label 'class'
+# python check_model.py --model 'RF' --model_dataset 'ampc' --validate_dataset 'ampc' --model_label "y" --validate_label 'y'

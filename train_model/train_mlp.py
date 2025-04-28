@@ -61,6 +61,10 @@ def train_and_evaluate(dataset, label, df, test_df, fingerprint_col="ECFP_2"):
     os.makedirs(checkpoint_dir, exist_ok=True)
     best_val_roc_acc, best_model = 0, None
 
+    num_positive = df[label].sum()
+    num_negative = len(df) - num_positive
+    pos_weight = torch.tensor(num_negative / num_positive, dtype=torch.float32).to(device)
+
     for param_values in PARAM_COMBINATIONS:
         params = dict(zip(PARAM_KEYS, param_values))
         logging.info(f"Training with params: {params}")
@@ -71,7 +75,7 @@ def train_and_evaluate(dataset, label, df, test_df, fingerprint_col="ECFP_2"):
         model = MLP(hidden_dim=params["hidden_dim"], num_hidden_layers=params["num_hidden_layers"],
                     dropout_rate=params["dropout_rate"]).to(device)
         optimizer = optim.Adam(model.parameters(), lr=params["learning_rate"])
-        criterion = torch.nn.BCEWithLogitsLoss()
+        criterion = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)
 
         epochs_without_improvement = 0
         patience = 10
@@ -140,8 +144,8 @@ def train_and_evaluate(dataset, label, df, test_df, fingerprint_col="ECFP_2"):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Train MLP model.")
-    parser.add_argument("--dataset", choices=["cdk2"], default="cdk2", help="Dataset choice.")
-    parser.add_argument("--label", choices=["class", "activity"], default="class", help="Y label column.")
+    parser.add_argument("--dataset", choices=["ampc", "cdk2"], default="cdk2", help="Dataset choice.")
+    parser.add_argument("--label", choices=["y", "class", "activity"], default="class", help="Y label column.")
     args = parser.parse_args()
 
     seed_everything(123)
@@ -153,5 +157,5 @@ if __name__ == '__main__':
 
     logging.info("Done!")
 
-# nohup python "train_mlp.py" > "logs/mlp_scaffold.log" 2>&1 &
-# python train_mlp.py --dataset 'cdk2' --label 'class'
+# nohup python "train_mlp.py" --dataset 'ampc' --label 'y' > "mlp_scaffold.log" 2>&1 &
+# python train_mlp.py --dataset 'ampcc' --label 'y'

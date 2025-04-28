@@ -43,9 +43,12 @@ def train_and_evaluate(dataset, label, df, test_df, tree_method, fingerprint_col
     for param_values in PARAM_COMBINATIONS:
         params = dict(zip(PARAM_KEYS, param_values))
 
+        scale_pos_weight = sum(y_train == 0) / sum(y_train == 1)
+
         model = xgb.XGBClassifier(
             tree_method=tree_method,
             eval_metric='logloss',
+            scale_pos_weight=scale_pos_weight,
             **params
         )
 
@@ -71,7 +74,7 @@ def train_and_evaluate(dataset, label, df, test_df, tree_method, fingerprint_col
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Train XGBoost model")
     parser.add_argument("--gpu", type=int, default=0, help="Use GPU (1) or CPU (0)")
-    parser.add_argument("--dataset", choices=["ampcc", "cdk2"], default="cdk2", help="Dataset choice")
+    parser.add_argument("--dataset", choices=["ampc", "cdk2"], default="cdk2", help="Dataset choice")
     parser.add_argument("--label", choices=['class', 'activity','y'], default='class', help="Target column")
 
     args = parser.parse_args()
@@ -86,7 +89,7 @@ if __name__ == '__main__':
                        tree_method="gpu_hist" if gpu == 1 else "hist")
     logging.info("Done!")
 
-# nohup python train_xgb.py --dataset 'ampcc' --label 'y' > train_xgb.log 2>&1 &
+# nohup python train_xgb.py --dataset 'ampc' --label 'y' > train_xgb.log 2>&1 &
 
 
 
