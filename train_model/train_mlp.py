@@ -52,12 +52,12 @@ def load_data(df, label, fingerprint_col="ECFP_2"):
 
     return {split: MyDataset(data["X"], data["y"]) for split, data in datasets.items()}
 
-def train_and_evaluate(dataset, label, df, test_df, fingerprint_col="ECFP_2"):
+def train_and_evaluate(dataset, label, df, test_df, fingerprint_col, filename):
     best_model, best_roc_auc, best_params = None, 0, None
     datasets = load_data(df, label, fingerprint_col)
     test_loader = DataLoader(datasets["test"], batch_size=32, shuffle=False)
 
-    checkpoint_dir = f"best_models/{dataset}/{label}/mlp"
+    checkpoint_dir = f"best_models/{dataset}/{fingerprint_col}/{label}/mlp"
     os.makedirs(checkpoint_dir, exist_ok=True)
     best_val_roc_acc, best_model = 0, None
 
@@ -73,7 +73,7 @@ def train_and_evaluate(dataset, label, df, test_df, fingerprint_col="ECFP_2"):
         val_loader = DataLoader(datasets["val"], batch_size=params["batch_size"], shuffle=False)
 
         model = MLP(hidden_dim=params["hidden_dim"], num_hidden_layers=params["num_hidden_layers"],
-                    dropout_rate=params["dropout_rate"]).to(device)
+                    dropout_rate=params["dropout_rate"], in_features=2048).to(device)
         optimizer = optim.Adam(model.parameters(), lr=params["learning_rate"])
         criterion = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)
 
@@ -111,7 +111,7 @@ def train_and_evaluate(dataset, label, df, test_df, fingerprint_col="ECFP_2"):
                 best_val_roc_acc = val_roc_auc
                 best_model = model
 
-                best_model_path = os.path.join(checkpoint_dir, f'best_model.pth')
+                best_model_path = os.path.join(checkpoint_dir, f'best_model_{filename}.pth')
                 torch.save({
                     'model_state_dict': model.state_dict(),
                     'hidden_dim': params["hidden_dim"],
@@ -144,18 +144,22 @@ def train_and_evaluate(dataset, label, df, test_df, fingerprint_col="ECFP_2"):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Train MLP model.")
-    parser.add_argument("--dataset", choices=["ampc", "cdk2"], default="cdk2", help="Dataset choice.")
-    parser.add_argument("--label", choices=["y", "class", "activity"], default="class", help="Y label column.")
+    parser.add_argument("--dataset", default="cdk4", help="Dataset choice.", required=False)
+    parser.add_argument("--label", choices=["y", "class", "activity"], default="y", help="Y label column.", required=False)
+    parser.add_argument("--fingerprint", choices=['FGP', 'ECFP_2', 'ECFP_count_2', 'ECFP_3', 'ECFP_count_3', 'KLEKOTA',
+                                                   'KLEKOTA_count', 'MORDRED'], default="ECFP_2", required=False, help="Fingerprint method.")
+    parser.add_argument("--filename", required=False, default="raw", help="Dataset filename")
+
     args = parser.parse_args()
+    dataset, label, fingerprint, filename = args.dataset, args.label, args.fingerprint, args.filename
 
     seed_everything(123)
 
-    df = pd.read_parquet(f"../data/{args.dataset}/raw.parquet")
+    df = pd.read_parquet(f"../data/{dataset}/{filename}.parquet")
     test_df = df[df["split"] == "test"]
 
-    train_and_evaluate(args.dataset, args.label, df, test_df)
+    train_and_evaluate(dataset, label, df, test_df, fingerprint, filename)
 
     logging.info("Done!")
 
-# nohup python "train_mlp.py" --dataset 'ampc' --label 'y' > "mlp_scaffold.log" 2>&1 &
-# python train_mlp.py --dataset 'ampcc' --label 'y'
+# nohup python "train_mlp.py" --dataset 'cdk2' --label 'y' > "mlp_scaffold.log" 2>&1 &
