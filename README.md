@@ -112,3 +112,26 @@ The datasets contains the following files:
 * raw.parquet: Contains the raw data used for training and validating models, with labels: class, activity.
 * graph_data_class.p: Contains the graph data for the class model used by GCN.
 * graph_data_activity.p: Contains the graph data for the activity model used by GCN.
+
+## Benchmark Dataset 🧪
+
+The benchmark dataset is located at `data/{cdk_index}/pharmacophores_labels.parquet`.  
+Each pharmacophore type is represented by an atom index or a list of atom indices. Atoms at these positions are labeled as `1`, while all others are labeled as `0`, in case of PharmacoScore calculation.
+
+Medicinal chemists can evaluate our labeling protocol using the 2D plots using plot_labels.py script via:
+
+```sh
+python plot_labels.py --dataset 'cdk6'
+```
+
+These plots visually highlight labeled pharmacophore atoms, allowing assessment of atom type and interaction type:
+
+- **Hydrophobic** – yellow  
+- **Aromatic** – pink  
+- **Hydrogen Donor** – orange  
+- **Hydrogen Acceptor (Nitrogen)** – green  
+
+### Notes on labeling
+
+- In **fused ring systems**, the entire aromatic system is labeled as aromatic, not just the nearest atoms selected by **Phase (Schrödinger)**.  
+- For **hydrophobic interactions**, the entire hydrophobic surface is marked, rather than just the closest atom.
