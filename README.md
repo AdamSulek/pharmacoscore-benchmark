@@ -17,7 +17,7 @@
 
 ### 1. Creating the Conda Environment
 
-If you have an environment configuration file (`env.yml`), you can create the environment using:
+If you have an environment configuration file (`env.yml` for linux and `env-windows.yml` for windows system), you can create the environment using:
 
 ```sh
 conda env create -f env.yml
@@ -109,7 +109,8 @@ Arguments:
 
 The datasets contains the following files:
 * pharmacophore_labels.parquet: Contains the pharmacophore labels for checking pharmacophore allignment.
-* raw.parquet: Contains the raw data used for training and validating models, with labels: class, activity.
+* raw.parquet: Contains the raw data used for training and validating models, with labels: class, activity. Training is based 
+on ECFP_2 column, based on Morgan fingerprint without count and with radius 2.
 * graph_data_class.p: Contains the graph data for the class model used by GCN.
 * graph_data_activity.p: Contains the graph data for the activity model used by GCN.
 

@@ -27,7 +27,7 @@ PARAM_GRID = {
 PARAM_COMBINATIONS = list(product(*PARAM_GRID.values()))
 PARAM_KEYS = list(PARAM_GRID.keys())
 
-def load_dataset(dataset, fingerprint, label, filename):
+def load_dataset(dataset, label, filename):
     df = pd.read_parquet(f'../data/{dataset}/{filename}.parquet')
 
     if 'val' not in df['split'].unique():
@@ -44,19 +44,19 @@ def load_dataset(dataset, fingerprint, label, filename):
 
     return {
         split: (
-            np.stack(data_splits[split][fingerprint].values),
+            np.stack(data_splits[split]["ECFP_2"].values),
             data_splits[split][label].values
         )
         for split in data_splits
     }
 
-def train_and_evaluate(dataset, label, fingerprint, dataset_splits, filename, score_method = "ROC_AUC"):
+def train_and_evaluate(dataset, label, dataset_splits, filename, score_method = "ROC_AUC"):
     best_model, best_params, best_roc_auc, best_pr_auc = None, None, -1, -1
 
     X_train, y_train = dataset_splits["train"]
     X_val, y_val = dataset_splits["val"]
 
-    checkpoint_dir = f"best_models/{dataset}/{fingerprint}/{label}/random_forest"
+    checkpoint_dir = f"best_models/{dataset}/{label}/random_forest"
     os.makedirs(checkpoint_dir, exist_ok=True)
 
     for param_values in PARAM_COMBINATIONS:
@@ -89,20 +89,18 @@ def train_and_evaluate(dataset, label, fingerprint, dataset_splits, filename, sc
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Train Random Forest model")
-    parser.add_argument("--dataset", default="cdk2", help="Dataset choice")
-    parser.add_argument("--label", choices=["y", "class", "activity"], default="y", help="Target column")
-    parser.add_argument("--fingerprint", choices=['FGP', 'ECFP_2', 'ECFP_count_2', 'ECFP_3', 'ECFP_count_3', 'KLEKOTA',
-                                                   'KLEKOTA_count', 'MORDRED'], required=False, default="ECFP_2", help="Fingerprint method.")
-    parser.add_argument("--filename", required=False, default="raw", help="Dataset filename")
+    parser.add_argument("--dataset", default="cdk2", required = False, help="Dataset choice")
+    parser.add_argument("--label", choices=["y", "class", "activity"], default="y", required = False, help="Target column")
+    parser.add_argument("--filename", default="raw", required=False, help="Dataset filename")
 
     args = parser.parse_args()
-    dataset, label, fingerprint, filename = args.dataset, args.label, args.fingerprint, args.filename
+    dataset, label, filename = args.dataset, args.label, args.filename
 
     seed_everything(123)
 
-    dataset_splits = load_dataset(dataset, fingerprint, label, filename)
-    train_and_evaluate(dataset, label, fingerprint, dataset_splits, filename)
+    dataset_splits = load_dataset(dataset, label, filename)
+    train_and_evaluate(dataset, label, dataset_splits, filename)
 
     logging.info("Done!")
 
-# nohup python train_rf.py --dataset 'ampc_ecfp' --label 'y' --fingerprint 'ECFP_count_3' > logs/train_rf_ecfp_count_3.log 2>&1 &
+# nohup python train_rf.py --dataset 'cdk2' --label 'y' --filename 'raw' > logs/train_rf_cdk2_y.log 2>&1 &

@@ -2,6 +2,7 @@ import os
 import random
 import sys
 
+import sklearn
 import torch
 import joblib
 import numpy as np
@@ -48,8 +49,8 @@ def evaluate_model(y_label, y_proba, y_pred):
     logging.info(f"  F1 Score: {f1:.4f}")
     logging.info(f"    TP: {tp}, TN: {tn}, FP: {fp}, FN: {fn}")
 
-def load_gcn_model(dataset, label, fingerprint):
-    checkpoint = torch.load(f"best_models/{dataset}/{fingerprint}/{label}/gcn/best_model.pth", weights_only=False)
+def load_gcn_model(dataset, label):
+    checkpoint = torch.load(f"best_models/{dataset}/{label}/gcn/best_model.pth", weights_only=False)
     input_dim = checkpoint['input_dim']
     model_dim = checkpoint['model_dim']
     dropout_rate = checkpoint['dropout_rate']
@@ -64,8 +65,8 @@ def load_gcn_model(dataset, label, fingerprint):
 
     return model
 
-def load_mlp_model(dataset, label, fingerprint, filename):
-    checkpoint = torch.load(f"best_models/{dataset}/{fingerprint}/{label}/mlp/best_model_{filename}.pth")
+def load_mlp_model(dataset, label, filename):
+    checkpoint = torch.load(f"best_models/{dataset}/{label}/mlp/best_model_{filename}.pth")
     hidden_dim = checkpoint['hidden_dim']
     num_hidden_layers = checkpoint['num_hidden_layers']
     dropout_rate = checkpoint['dropout_rate']
@@ -74,11 +75,11 @@ def load_mlp_model(dataset, label, fingerprint, filename):
     model.load_state_dict(checkpoint['model_state_dict'])
     return model
 
-def load_rf_model(dataset, label, fingerprint, filename):
-    return joblib.load(f"best_models/{dataset}/{fingerprint}/{label}/random_forest/best_model_{filename}.joblib")
+def load_rf_model(dataset, label, filename):
+    return joblib.load(f"best_models/{dataset}/{label}/random_forest/best_model_{filename}.joblib")
 
-def load_xgb_model(dataset, label, fingerprint, filename):
-    return joblib.load(f"best_models/{dataset}/{fingerprint}/{label}/xgboost/best_model_{filename}.joblib")
+def load_xgb_model(dataset, label, filename):
+    return joblib.load(f"best_models/{dataset}/{label}/xgboost/best_model_{filename}.joblib")
 
 
 def check_gcn_model(test_data, model):
@@ -104,7 +105,7 @@ def check_gcn_model(test_data, model):
 
     evaluate_model(y_label_list, y_proba_list, y_pred_list)
 
-def check_model(df, model, model_name, fingerprint, label='class', theshold="0.5"):
+def check_model(df, model, model_name, label='class', theshold="0.5"):
     if model_name == 'GCN':
         with open(f'../data/cdk2/graph_data_{label}.p', 'rb') as f:
             data_list = pickle.load(f)
@@ -115,7 +116,7 @@ def check_model(df, model, model_name, fingerprint, label='class', theshold="0.5
         return None, None, None
 
     elif model_name == 'MLP':
-        X_test = np.stack(df[fingerprint].values).astype(np.float32)
+        X_test = np.stack(df["ECFP_2"].values).astype(np.float32)
         y_label = df[label].values
         X_test_tensor = torch.tensor(X_test, dtype=torch.float32).to(device)
         model = model.to(device)
@@ -129,7 +130,7 @@ def check_model(df, model, model_name, fingerprint, label='class', theshold="0.5
         return df["ID"].values, y_proba, y_label
 
     elif model_name in ['RF', 'XGB']:
-        X_test = np.stack(df[fingerprint].values).astype(np.float32)
+        X_test = np.stack(df["ECFP_2"].values).astype(np.float32)
         y_label = df[label].values
         y_proba = model.predict_proba(X_test)[:, 1]
         y_pred = (y_proba > float(threshold)).astype(int)
@@ -149,24 +150,22 @@ def save_predictions_to_csv(ids, y_proba, y_label, output_path="predictions.csv"
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Check model metrics on test split from dataset.")
     parser.add_argument("--model", type=str, choices=['GCN', 'MLP', 'RF', 'XGB'], required=False,
-                        default="RF", help="Model type to load and generate predictions.")
-    parser.add_argument("--model_dataset", default="cdk4", required=False,
+                        default="MLP", help="Model type to load and generate predictions.")
+    parser.add_argument("--model_dataset", default="cdk2", required=False,
                         help="Dataset model was trained on.")
-    parser.add_argument("--validate_dataset", default="cdk4", required=False,
+    parser.add_argument("--validate_dataset", default="cdk2", required=False,
                         help="Dataset to check model label.")
     parser.add_argument("--model_label", choices=['y', 'class', 'activity'], default='y', required=False,
                         help="Label model was trained on.")
     parser.add_argument("--validate_label", choices=['class', 'activity', 'y'], default='y', required=False,
                         help="Label to check model on.")
-    parser.add_argument("--fingerprint", choices=['ECFP_2', 'ECFP_count_2', 'ECFP_3', 'ECFP_count_3', 'KLEKOTA',
-                                               'KLEKOTA_count', 'MORDRED', "FGP"], required=False, default="ECFP_2", help="Fingerprint method.")
     parser.add_argument("--model_filename", required=False, default="raw", help="Dataset filename")
-    parser.add_argument("--validate_filename", required=False, default="raw", help="Validate filename")
+    parser.add_argument("--validate_filename", required=False, default="decoy", help="Validate filename")
     parser.add_argument("--threshold", required=False, default="0.5", help="Threshold")
 
     args = parser.parse_args()
-    c_model, validate_dataset, model_dataset, validate_label, model_label, fingerprint, model_filename, validate_filename, threshold\
-        = args.model, args.validate_dataset, args.model_dataset, args.validate_label, args.model_label, args.fingerprint, args.model_filename, args.validate_filename, args.threshold
+    c_model, validate_dataset, model_dataset, validate_label, model_label, model_filename, validate_filename, threshold\
+        = args.model, args.validate_dataset, args.model_dataset, args.validate_label, args.model_label, args.model_filename, args.validate_filename, args.threshold
 
     seed_everything(123)
 
@@ -174,20 +173,20 @@ if __name__ == "__main__":
     test_df = df[df['split'] == 'test'] if 'split' in df.columns else df
 
     if c_model == 'GCN':
-        model = load_gcn_model(model_dataset, model_label, fingerprint)
+        model = load_gcn_model(model_dataset, model_label)
 
     elif c_model == 'MLP':
-        model = load_mlp_model(model_dataset, model_label, fingerprint, model_filename)
+        model = load_mlp_model(model_dataset, model_label, model_filename)
 
     elif c_model == 'RF':
-        model = load_rf_model(model_dataset, model_label, fingerprint, model_filename)
+        model = load_rf_model(model_dataset, model_label, model_filename)
 
     elif c_model == "XGB":
-        model = load_xgb_model(model_dataset, model_label, fingerprint, model_filename)
+        model = load_xgb_model(model_dataset, model_label, model_filename)
 
-    ids, y_proba, y_label = check_model(test_df, model, c_model, fingerprint, validate_label)
+    ids, y_proba, y_label = check_model(test_df, model, c_model, validate_label)
     os.makedirs("predictions", exist_ok=True)
-    output_file = f"predictions/{c_model}_{model_dataset}_{fingerprint}_{model_filename}.csv"
+    output_file = f"predictions/{c_model}_{model_dataset}_{model_filename}_{validate_filename}.csv"
     save_predictions_to_csv(ids, y_proba, y_label, output_file)
 
-# python check_model.py --model 'XGB' --fingerprint 'ECFP_2' --model_dataset 'cdk2' --validate_dataset 'cdk2' --model_label "y" --validate_label 'y' --model_filename 'raw' --validate_filename 'raw'
+# python check_model.py --model 'XGB' --model_dataset 'cdk2' --validate_dataset 'cdk2' --model_label "y" --validate_label 'y' --model_filename 'raw' --validate_filename 'raw'

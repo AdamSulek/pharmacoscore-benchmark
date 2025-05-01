@@ -79,8 +79,8 @@ def load_gcn_model(use_hooks):
     return model
 
 
-def load_mlp_model(dataset, model_label):
-    checkpoint = torch.load(f"../train_model/best_models/{dataset}/{model_label}/mlp/best_model.pth")
+def load_mlp_model(dataset, model_label, filename):
+    checkpoint = torch.load(f"../train_model/best_models/{dataset}/{model_label}/mlp/best_model_{filename}.pth")
 
     hidden_dim = checkpoint['hidden_dim']
     num_hidden_layers = checkpoint['num_hidden_layers']
@@ -91,11 +91,11 @@ def load_mlp_model(dataset, model_label):
 
     return model
 
-def load_rf_model(dataset, model_label):
-    return joblib.load(f"../train_model/best_models/{dataset}/{model_label}/random_forest/best_model.joblib")
+def load_rf_model(dataset, model_label, filename):
+    return joblib.load(f"../train_model/best_models/{dataset}/{model_label}/random_forest/best_model_{filename}.joblib")
 
-def load_xgb_model(dataset, model_label):
-    return joblib.load(f"../train_model/best_models/{dataset}/{model_label}/xgboost/best_model.joblib")
+def load_xgb_model(dataset, model_label, filename):
+    return joblib.load(f"../train_model/best_models/{dataset}/{model_label}/xgboost/best_model_{filename}.joblib")
 
 def compute_saliency_map_mlp(model, data):
     model.eval()
@@ -131,7 +131,7 @@ def identify_influential_nodes_gcn_gradcam(model, data, top_k=5):
     return top_nodes, node_importance.cpu().detach().numpy()
 
 def add_model_predictions_and_atom_importance_to_df(df, model, model_name, label='class'):
-    chembl_id_list = df['chembl_id'].tolist()
+    chembl_id_list = df['ID'].tolist()
     y_list = df[label].tolist()
     df_result_fidelity = pd.DataFrame({'chembl_id': chembl_id_list, 'label': y_list})
     df_result_atom_importance = pd.DataFrame({'chembl_id': chembl_id_list})
@@ -174,7 +174,7 @@ def add_model_predictions_and_atom_importance_to_df(df, model, model_name, label
 
         for i in range(shap_values.shape[0]):
             row = df.iloc[i]
-            chembl_id = row["chembl_id"]
+            chembl_id = row["ID"]
             bit_info = row["bit_info"]
             molecule_shap_values = shap_values[i]
 
@@ -205,11 +205,6 @@ def add_model_predictions_and_atom_importance_to_df(df, model, model_name, label
             sample_shap_values = shap_values[i]
             top_features = get_top_5_indices(sample_shap_values)
 
-            if i == 0:
-                print(sample_shap_values)
-                print(top_features)
-                print(sample_shap_values[top_features])
-
             modified_sample = sample.clone()
             for feature in top_features:
                 modified_sample[feature] = 1 - modified_sample[feature]
@@ -227,7 +222,7 @@ def add_model_predictions_and_atom_importance_to_df(df, model, model_name, label
 
         for i in range(X_test.shape[0]):
             row = df.iloc[i]
-            chembl_id = row["chembl_id"]
+            chembl_id = row["ID"]
             bit_info = row["bit_info"]
 
             fingerprint = X_test[i]
@@ -274,10 +269,6 @@ def add_model_predictions_and_atom_importance_to_df(df, model, model_name, label
 
             sample = X_test_tensor[i].clone()
 
-            if i == 0:
-                print(top_bits)
-                print(molecule_siliency_values[top_bits])
-
             modified_sample = sample.clone()
             for feature in top_bits:
                 modified_sample[feature] = 1 - modified_sample[feature]
@@ -296,10 +287,9 @@ def add_model_predictions_and_atom_importance_to_df(df, model, model_name, label
 
         for i in range(shap_values.shape[0]):
             row = df.iloc[i]
-            chembl_id = row["chembl_id"]
+            chembl_id = row["ID"]
             bit_info = row["bit_info"]
             molecule_shap_values = [sv[1] for sv in shap_values[i]]
-            print(molecule_shap_values)
 
             atom_data = {}
 
@@ -321,7 +311,6 @@ def add_model_predictions_and_atom_importance_to_df(df, model, model_name, label
         top_positive_indices = [get_top_5_indices(shap_element) for shap_element in shap_values]
 
         X_test_masked = X_test.copy()
-        logging.info(f"X_test_masked: {X_test_masked.shape}")
         for i, indices in enumerate(top_positive_indices):
             X_test_masked[i, indices] = 1 - X_test_masked[i, indices]  # Flip bits
 
@@ -344,10 +333,9 @@ def add_model_predictions_and_atom_importance_to_df(df, model, model_name, label
 
         for i in range(shap_values.shape[0]):
             row = df.iloc[i]
-            chembl_id = row["chembl_id"]
+            chembl_id = row["ID"]
             bit_info = row["bit_info"]
             molecule_shap_values = [float(sv[1]) for sv in shap_values[i]]
-            print(molecule_shap_values)
 
             atom_data = {}
 
@@ -367,7 +355,6 @@ def add_model_predictions_and_atom_importance_to_df(df, model, model_name, label
                 })
 
         X_test_masked = X_test.copy()
-        logging.info(f"X_test_masked: {X_test_masked.shape}")
         for i in range(shap_values.shape[0]):
             molecule_shap_values = [float(sv[1]) for sv in shap_values[i]]
             top_positive_indices = get_top_5_indices(molecule_shap_values)
@@ -387,24 +374,22 @@ def add_model_predictions_and_atom_importance_to_df(df, model, model_name, label
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Calculate model predictions and atom importance to "
                                                  "further analysis of model fidelity and pharmacophore score.")
-    parser.add_argument("--model", type=str,
-                        choices=['GCN', 'MLP', 'RF', 'XGB', 'MLP_VG', 'GCN_VG'],
-                        required=False,
-                        default='GCN',
-                        help="Model type to load and generate predictions.")
-    parser.add_argument("--dataset", choices=["cdk2"], default="cdk2", required=False, help="Dataset choice.")
-    parser.add_argument("--model_label", choices=['class', 'activity'], default='class', required=False, help="Y label column")
-    parser.add_argument("--label", choices=['class', 'activity'], default='class', required=False, help="Y label column")
+    parser.add_argument("--model", choices=['GCN', 'MLP', 'RF', 'XGB', 'MLP_VG', 'GCN_VG'],
+                        default='RF', required=False, help="Model type to load and generate predictions.")
+    parser.add_argument("--dataset", default="cdk2", required=False, help="Dataset choice.")
+    parser.add_argument("--model_label", choices=['class', 'activity', 'y'], default='y', required=False, help="Y label column")
+    parser.add_argument("--label", choices=['class', 'activity', 'y'], default='y', required=False, help="Y label column")
+    parser.add_argument("--filename", default="raw", required=False, help="Dataset filename")
 
     args = parser.parse_args()
-    c_model, dataset, model_label, label = args.model, args.dataset, args.model_label, args.label
+    c_model, dataset, model_label, label, filename = args.model, args.dataset, args.model_label, args.label, args.filename
 
     if c_model.startswith('GCN'):
         with open(f'../data/{dataset}/graph_data_{model_label}.p', 'rb') as f:
             df = pickle.load(f)
         test_df = [data for data in df if data.split == 'test']
     else:
-        df = pd.read_parquet(f"../data/{dataset}/raw.parquet")
+        df = pd.read_parquet(f"../data/{dataset}/{filename}.parquet")
         test_df = df[(df['split'] == 'test')].reset_index(drop=True)
 
     if c_model == 'GCN':
@@ -416,17 +401,17 @@ if __name__ == "__main__":
     elif c_model.startswith('MLP'):
         X_array, bit_info_list = gen_X_fingerprint(test_df, radius=2)
         test_df['bit_info'] = bit_info_list
-        model = load_mlp_model(dataset, model_label)
+        model = load_mlp_model(dataset, model_label, filename)
 
     elif c_model == 'RF':
         X_array, bit_info_list = gen_X_fingerprint(test_df, 2)
         test_df['bit_info'] = bit_info_list
-        model = load_rf_model(dataset, model_label)
+        model = load_rf_model(dataset, model_label, filename)
 
     elif c_model in 'XGB':
         X_array, bit_info_list = gen_X_fingerprint(test_df, 2)
         test_df['bit_info'] = bit_info_list
-        model = load_xgb_model(dataset, model_label)
+        model = load_xgb_model(dataset, model_label, filename)
 
 
     fidelity_results, atom_importance_results = (
@@ -447,4 +432,4 @@ if __name__ == "__main__":
     logging.info(f"Count fidelity: {output_file_name}")
 
 
-# python check_fidelity_and_pharmacoscore.py --model "RF" --model_label 'class' --label 'class'
+# python check_fidelity_and_pharmacoscore.py --model "RF" --model_label 'y' --label 'y' --filename 'raw'

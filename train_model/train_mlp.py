@@ -41,23 +41,23 @@ def seed_everything(seed):
     random.seed(seed)
     torch.manual_seed(seed)
 
-def load_data(df, label, fingerprint_col="ECFP_2"):
+def load_data(df, label):
     datasets = {split: {"X": [], "y": []} for split in ["train", "val", "test"]}
 
     for _, row in df.iterrows():
         split = row['split']
         if split in datasets:
-            datasets[split]["X"].append(row[fingerprint_col])
+            datasets[split]["X"].append(row["ECFP_2"])
             datasets[split]["y"].append(row[label])
 
     return {split: MyDataset(data["X"], data["y"]) for split, data in datasets.items()}
 
-def train_and_evaluate(dataset, label, df, test_df, fingerprint_col, filename):
+def train_and_evaluate(dataset, label, df, test_df, filename):
     best_model, best_roc_auc, best_params = None, 0, None
-    datasets = load_data(df, label, fingerprint_col)
+    datasets = load_data(df, label)
     test_loader = DataLoader(datasets["test"], batch_size=32, shuffle=False)
 
-    checkpoint_dir = f"best_models/{dataset}/{fingerprint_col}/{label}/mlp"
+    checkpoint_dir = f"best_models/{dataset}/{label}/mlp"
     os.makedirs(checkpoint_dir, exist_ok=True)
     best_val_roc_acc, best_model = 0, None
 
@@ -144,22 +144,20 @@ def train_and_evaluate(dataset, label, df, test_df, fingerprint_col, filename):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Train MLP model.")
-    parser.add_argument("--dataset", default="cdk4", help="Dataset choice.", required=False)
+    parser.add_argument("--dataset", default="cdk2", help="Dataset choice.", required=False)
     parser.add_argument("--label", choices=["y", "class", "activity"], default="y", help="Y label column.", required=False)
-    parser.add_argument("--fingerprint", choices=['FGP', 'ECFP_2', 'ECFP_count_2', 'ECFP_3', 'ECFP_count_3', 'KLEKOTA',
-                                                   'KLEKOTA_count', 'MORDRED'], default="ECFP_2", required=False, help="Fingerprint method.")
     parser.add_argument("--filename", required=False, default="raw", help="Dataset filename")
 
     args = parser.parse_args()
-    dataset, label, fingerprint, filename = args.dataset, args.label, args.fingerprint, args.filename
+    dataset, label, filename = args.dataset, args.label, args.filename
 
     seed_everything(123)
 
     df = pd.read_parquet(f"../data/{dataset}/{filename}.parquet")
     test_df = df[df["split"] == "test"]
 
-    train_and_evaluate(dataset, label, df, test_df, fingerprint, filename)
+    train_and_evaluate(dataset, label, df, test_df, filename)
 
     logging.info("Done!")
 
-# nohup python "train_mlp.py" --dataset 'cdk2' --label 'y' > "mlp_scaffold.log" 2>&1 &
+# nohup python "train_mlp.py" --dataset 'cdk2' --label 'y' --filename 'raw' > "train_mlp_cdk2_y.log" 2>&1 &

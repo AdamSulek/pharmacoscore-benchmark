@@ -37,8 +37,8 @@ def load_gcn_model(dataset):
 
     return model
 
-def load_mlp_model(dataset):
-    checkpoint = torch.load(f"../train_model/best_models/{dataset}/class/mlp/best_model.pth")
+def load_mlp_model(dataset, label, filename):
+    checkpoint = torch.load(f"../train_model/best_models/{dataset}/{label}/mlp/best_model_{filename}.pth")
     hidden_dim = checkpoint['hidden_dim']
     num_hidden_layers = checkpoint['num_hidden_layers']
     dropout_rate = checkpoint['dropout_rate']
@@ -47,11 +47,11 @@ def load_mlp_model(dataset):
     model.load_state_dict(checkpoint['model_state_dict'])
     return model
 
-def load_rf_model(dataset):
-    return joblib.load(f"../train_model/best_models/{dataset}/class/random_forest/best_model.joblib")
+def load_rf_model(dataset, label, filename):
+    return joblib.load(f"../train_model/best_models/{dataset}/{label}/random_forest/best_model_{filename}.joblib")
 
-def load_xgb_model(dataset):
-    return joblib.load(f"../train_model/best_models/{dataset}/class/xgboost/best_model.joblib")
+def load_xgb_model(dataset, label, filename):
+    return joblib.load(f"../train_model/best_models/{dataset}/{label}/xgboost/best_model_{filename}.joblib")
 
 
 def get_fingerprint_with_bit_info(mol, radius=2, n_bits=2048):
@@ -70,12 +70,24 @@ def get_unique_atoms_from_top_features(top_features, bit_info):
 
 def score_match(mol, top_nodes):
     feature_counts = {"HBA": 0, "HBD": 0, "aromatic_1": 0, "aromatic_2": 0, "hydrophobic": 0}
+
+    hba_label = mol.get('HBA_label')
+    hbd_label = mol.get('HBD_label')
+    aromatic_1_label = mol.get('aromatic_1_label')
+    aromatic_2_label = mol.get('aromatic_2_label')
+    hydrophobic_label_modified = mol.get('hydrophobic_label')
+
     for node in top_nodes:
-        if node == mol['HBA_label']: feature_counts["HBA"] = 1
-        if node == mol['HBD_label']: feature_counts["HBD"] = 1
-        if node in mol['aromatic_1_label']: feature_counts["aromatic_1"] = 1
-        if node in mol['aromatic_2_label']: feature_counts["aromatic_2"] = 1
-        if node in mol['hydrophobic_label_modified']: feature_counts["hydrophobic"] = 1
+        if hba_label is not None and node == hba_label:
+            feature_counts["HBA"] = 1
+        if hbd_label is not None and node == hbd_label:
+            feature_counts["HBD"] = 1
+        if aromatic_1_label is not None and node in aromatic_1_label:
+            feature_counts["aromatic_1"] = 1
+        if aromatic_2_label is not None and node in aromatic_2_label:
+            feature_counts["aromatic_2"] = 1
+        if hydrophobic_label_modified is not None and node in hydrophobic_label_modified:
+            feature_counts["hydrophobic"] = 1
     return feature_counts
 
 def compute_saliency_map_mlp(model, data):
@@ -123,7 +135,6 @@ def identify_influential_nodes_gcn_vg(model, data, top_k=5):
     return top_nodes, saliency.cpu().detach().numpy()
 
 def analyze_mol(matching_row, important_atoms, total_feature_counts, found_cases):
-
     mol = matching_row.iloc[0]
     feature_counts = score_match(mol, important_atoms)
 
@@ -133,7 +144,7 @@ def analyze_mol(matching_row, important_atoms, total_feature_counts, found_cases
     found_cases += 1
     return total_feature_counts, found_cases
 
-def analyze_rf(rf_model, df, pharm_labels):
+def analyze_rf(rf_model, df, pharm_labels, output_list):
     total_feature_counts = {"HBA": 0, "HBD": 0, "aromatic_1": 0, "aromatic_2": 0, "hydrophobic": 0}
 
     explainer = shap.Explainer(rf_model, feature_perturbation="tree_path_dependent")
@@ -141,8 +152,9 @@ def analyze_rf(rf_model, df, pharm_labels):
     unique_atoms, all_atoms = 0, 0
 
     for _, row in df.iterrows():
-        chembl_id = row['chembl_id']
-        mol = Chem.MolFromSmiles(row['smiles'])
+        chembl_id = row["ID"]
+        smiles = row['smiles']
+        mol = Chem.MolFromSmiles(smiles)
 
         fingerprint, bit_info = get_fingerprint_with_bit_info(mol)
         fingerprint = fingerprint.reshape(1, -1)
@@ -160,12 +172,13 @@ def analyze_rf(rf_model, df, pharm_labels):
             all_atoms += mol.GetNumAtoms()
             unique_atoms += len(important_atoms_unique)
             total_feature_counts, found_cases = analyze_mol(matching_row, important_atoms, total_feature_counts, found_cases)
+            output_list.append({'chembl_id': chembl_id, 'top_nodes': list(important_atoms_unique), 'smiles': smiles})
 
     feature_means = {feature: count / found_cases for feature, count in total_feature_counts.items()}
 
     return feature_means, unique_atoms / all_atoms
 
-def analyze_mlp(mlp_model, df, pharm_labels):
+def analyze_mlp(mlp_model, df, pharm_labels, output_list):
     total_feature_counts = {"HBA": 0, "HBD": 0, "aromatic_1": 0, "aromatic_2": 0, "hydrophobic": 0}
 
     X_test = np.stack(df['ECFP_2'].values).astype(np.float32)
@@ -178,8 +191,9 @@ def analyze_mlp(mlp_model, df, pharm_labels):
     unique_atoms, all_atoms = 0, 0
 
     for _, row in df.iterrows():
-        chembl_id = row['chembl_id']
-        mol = Chem.MolFromSmiles(row['smiles'])
+        chembl_id = row["ID"]
+        smiles = row['smiles']
+        mol = Chem.MolFromSmiles(smiles)
 
         fingerprint, bit_info = get_fingerprint_with_bit_info(mol)
         fingerprint = fingerprint.reshape(1, -1)
@@ -199,20 +213,22 @@ def analyze_mlp(mlp_model, df, pharm_labels):
             all_atoms += mol.GetNumAtoms()
             unique_atoms += len(important_atoms_unique)
             total_feature_counts, found_cases = analyze_mol(matching_row, important_atoms, total_feature_counts, found_cases)
+            output_list.append({'chembl_id': chembl_id, 'top_nodes': list(important_atoms_unique), 'smiles': smiles})
 
     feature_means = {feature: count / found_cases for feature, count in total_feature_counts.items()}
 
     return feature_means, unique_atoms / all_atoms
 
-def analyze_mlp_vg(mlp_model, df, pharm_labels):
+def analyze_mlp_vg(mlp_model, df, pharm_labels, output_list):
     total_feature_counts = {"HBA": 0, "HBD": 0, "aromatic_1": 0, "aromatic_2": 0, "hydrophobic": 0}
 
     found_cases = 0
     unique_atoms, all_atoms = 0, 0
 
     for _, row in df.iterrows():
-        chembl_id = row['chembl_id']
-        mol = Chem.MolFromSmiles(row['smiles'])
+        chembl_id = row["ID"]
+        smiles = row['smiles']
+        mol = Chem.MolFromSmiles(smiles)
 
         fingerprint, bit_info = get_fingerprint_with_bit_info(mol)
         fingerprint = fingerprint.reshape(1, -1)
@@ -236,12 +252,13 @@ def analyze_mlp_vg(mlp_model, df, pharm_labels):
             all_atoms += mol.GetNumAtoms()
             unique_atoms += len(important_atoms_unique)
             total_feature_counts, found_cases = analyze_mol(matching_row, important_atoms, total_feature_counts, found_cases)
+            output_list.append({'chembl_id': chembl_id, 'top_nodes': list(important_atoms_unique), 'smiles': smiles})
 
     feature_means = {feature: count / found_cases for feature, count in total_feature_counts.items()}
 
     return feature_means, unique_atoms / all_atoms
 
-def analyze_xgb(xgb_model, df, pharm_labels):
+def analyze_xgb(xgb_model, df, pharm_labels, output_list):
     total_feature_counts = {"HBA": 0, "HBD": 0, "aromatic_1": 0, "aromatic_2": 0, "hydrophobic": 0}
 
     explainer = shap.Explainer(xgb_model)
@@ -249,8 +266,9 @@ def analyze_xgb(xgb_model, df, pharm_labels):
     unique_atoms, all_atoms = 0, 0
 
     for _, row in df.iterrows():
-        chembl_id = row['chembl_id']
-        mol = Chem.MolFromSmiles(row['smiles'])
+        chembl_id = row["ID"]
+        smiles = row['smiles']
+        mol = Chem.MolFromSmiles(smiles)
 
         fingerprint, bit_info = get_fingerprint_with_bit_info(mol)
         fingerprint = fingerprint.reshape(1, -1)
@@ -268,13 +286,14 @@ def analyze_xgb(xgb_model, df, pharm_labels):
             all_atoms += mol.GetNumAtoms()
             unique_atoms += len(important_atoms_unique)
             total_feature_counts, found_cases = analyze_mol(matching_row, important_atoms, total_feature_counts, found_cases)
+            output_list.append({'chembl_id': chembl_id, 'top_nodes': list(important_atoms_unique), 'smiles': smiles})
 
     feature_means = {feature: count / found_cases for feature, count in total_feature_counts.items()}
 
     return feature_means, unique_atoms / all_atoms
 
 
-def analyze_gcn(model, df, pharm_labels):
+def analyze_gcn(model, df, pharm_labels, output_list):
     total_feature_counts = {"HBA": 0, "HBD": 0, "aromatic_1": 0, "aromatic_2": 0, "hydrophobic": 0}
     found_cases = 0
 
@@ -282,6 +301,7 @@ def analyze_gcn(model, df, pharm_labels):
         label = test_sample.label
         if label == 1:
             chembl_id = test_sample.molecule_id
+            smiles = test_sample.smiles
             test_sample = test_sample.to(device)
 
             top_nodes, _ = identify_influential_nodes_gcn_gradcam(model, test_sample)
@@ -293,12 +313,13 @@ def analyze_gcn(model, df, pharm_labels):
                 # all_atoms += mol.GetNumAtoms()
                 # unique_atoms += len(important_atoms_unique)
                 total_feature_counts, found_cases = analyze_mol(matching_row, top_nodes, total_feature_counts,
-                                                                found_cases)
+                                                                         found_cases)
+                output_list.append({'chembl_id': chembl_id, 'top_nodes': str(top_nodes), 'smiles': smiles})
     feature_means = {feature: count / found_cases for feature, count in total_feature_counts.items()}
 
     return feature_means, 0
 
-def analyze_gcn_vg(model, df, pharm_labels):
+def analyze_gcn_vg(model, df, pharm_labels, output_list):
     total_feature_counts = {"HBA": 0, "HBD": 0, "aromatic_1": 0, "aromatic_2": 0, "hydrophobic": 0}
     found_cases = 0
 
@@ -306,6 +327,7 @@ def analyze_gcn_vg(model, df, pharm_labels):
         label = test_sample.label
         if label == 1:
             chembl_id = test_sample.molecule_id
+            smiles = test_sample.smiles
             test_sample = test_sample.to(device)
 
             top_nodes, _ = identify_influential_nodes_gcn_vg(model, test_sample)
@@ -317,54 +339,64 @@ def analyze_gcn_vg(model, df, pharm_labels):
                 # all_atoms += mol.GetNumAtoms()
                 # unique_atoms += len(important_atoms_unique)
                 total_feature_counts, found_cases = analyze_mol(matching_row, top_nodes, total_feature_counts,
-                                                                found_cases)
+                                                                         found_cases)
+                output_list.append({'chembl_id': chembl_id, 'top_nodes': str(top_nodes), 'smiles': smiles})
     feature_means = {feature: count / found_cases for feature, count in total_feature_counts.items()}
 
     return feature_means, 0
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Check model interpretability in terms of pharmacophore alignment and sparsity.")
-    parser.add_argument("--model" ,type=str, choices=['RF', 'MLP', 'GCN', 'GCN_VG', 'XGB', 'MLP_VG'])
-    parser.add_argument("--dataset", choices=["cdk2"], default="cdk2", required=False, help="Dataset choice.")
+    parser.add_argument("--model", default="RF", choices=['RF', 'MLP', 'GCN', 'GCN_VG', 'XGB', 'MLP_VG'], required=False)
+    parser.add_argument("--dataset", default="cdk2", required=False, help="Dataset choice.")
+    parser.add_argument("--label", choices=["y", "class", "activity"], default="y", required=False, help="Y label column.")
+    parser.add_argument("--filename", default="raw", required=False, help="Dataset filename")
 
     args = parser.parse_args()
-    c_model, dataset = args.model, args.dataset
+    c_model, dataset, label, filename = args.model, args.dataset, args.label, args.filename
 
+    os.makedirs("results", exist_ok=True)
+    output_file = f"results/{dataset}_{c_model}_{label}_top_nodes_activity.parquet"
     pharm_labels = pd.read_parquet(f"../data/{dataset}/pharmacophore_labels.parquet")
+    output_data = []
 
     if c_model.startswith('GCN'):
         with open(f'../data/{dataset}/graph_data_class.p', 'rb') as f:
             df = pickle.load(f)
         test_data = [data for data in df if data.split == 'test']
     else:
-        df = pd.read_parquet(f"../data/{dataset}/raw.parquet")
-        test_data = df[(df['split'] == 'test') & (df['class'] == 1)].reset_index(drop=True)
+        df = pd.read_parquet(f"../data/{dataset}/{filename}.parquet")
+        test_data = df[(df['split'] == 'test') & (df[label] == 1)].reset_index(drop=True)
 
     if args.model == 'MLP':
-        mlp_model = load_mlp_model(dataset)
-        feature_means, sparsity = analyze_mlp(mlp_model, test_data, pharm_labels)
+        mlp_model = load_mlp_model(dataset, label, filename)
+        feature_means, sparsity = analyze_mlp(mlp_model, test_data, pharm_labels, output_data)
 
     elif args.model == 'MLP_VG':
-        mlp_model = load_mlp_model(dataset)
-        feature_means, sparsity = analyze_mlp_vg(mlp_model, test_data, pharm_labels)
+        mlp_model = load_mlp_model(dataset, label, filename)
+        feature_means, sparsity = analyze_mlp_vg(mlp_model, test_data, pharm_labels, output_data)
 
     elif args.model == 'RF':
-        rf_model = load_rf_model(dataset)
-        feature_means, sparsity = analyze_rf(rf_model, test_data, pharm_labels)
+        rf_model = load_rf_model(dataset, label, filename)
+        feature_means, sparsity = analyze_rf(rf_model, test_data, pharm_labels, output_data)
 
     elif args.model == 'XGB':
-        xgb_model = load_xgb_model(dataset)
-        feature_means, sparsity = analyze_xgb(xgb_model, test_data, pharm_labels)
+        xgb_model = load_xgb_model(dataset, label, filename)
+        feature_means, sparsity = analyze_xgb(xgb_model, test_data, pharm_labels, output_data)
 
     elif args.model == 'GCN':
         gcn_model = load_gcn_model(dataset)
-        feature_means, sparsity = analyze_gcn(gcn_model, test_data, pharm_labels)
+        feature_means, sparsity = analyze_gcn(gcn_model, test_data, pharm_labels, output_data)
 
     elif args.model == 'GCN_VG':
         gcn_model = load_gcn_model(dataset)
-        feature_means, sparsity = analyze_gcn_vg(gcn_model, test_data, pharm_labels)
+        feature_means, sparsity = analyze_gcn_vg(gcn_model, test_data, pharm_labels, output_data)
 
     logging.info(f"Checking {args.model} \n Feature Mean Scores: {feature_means}")
     logging.info(f"Sparsity: {sparsity}")
 
-# python check_pharmacophore_allignment_and_sparsity.py --model 'RF' --dataset 'cdk2'
+    output_df = pd.DataFrame(output_data)
+    output_df.to_parquet(output_file, index=False)
+
+
+# python check_pharmacophore_allignment_and_sparsity.py --model 'RF' --dataset 'cdk2' --label 'y' --filename 'raw'
