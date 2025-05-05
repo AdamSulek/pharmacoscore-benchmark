@@ -201,7 +201,8 @@ def analyze_mlp(mlp_model, df, pharm_labels, output_list):
         fingerprint_tensor = torch.tensor(fingerprint, dtype=torch.float32).to(device)
 
         shap_values = explainer.shap_values(fingerprint_tensor, check_additivity=False)
-        shap_values_class_1 = shap_values[0, :]
+        # shap_values_class_1 = shap_values[0, :]
+        shap_values_class_1 = shap_values[0, :, 0]
         top_bits = np.argsort(np.abs(shap_values_class_1))[::-1][:5]
 
         important_atoms = [bit_info[bit][0][0] for bit in top_bits if bit in bit_info]
@@ -347,7 +348,7 @@ def analyze_gcn_vg(model, df, pharm_labels, output_list):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Check model interpretability in terms of pharmacophore alignment and sparsity.")
-    parser.add_argument("--model", default="RF", choices=['RF', 'MLP', 'GCN', 'GCN_VG', 'XGB', 'MLP_VG'], required=False)
+    parser.add_argument("--model", default="MLP", choices=['RF', 'MLP', 'GCN', 'GCN_VG', 'XGB', 'MLP_VG'], required=False)
     parser.add_argument("--dataset", default="cdk2", required=False, help="Dataset choice.")
     parser.add_argument("--label", choices=["y", "class", "activity"], default="y", required=False, help="Y label column.")
     parser.add_argument("--filename", default="raw", required=False, help="Dataset filename")

@@ -160,7 +160,7 @@ if __name__ == "__main__":
     parser.add_argument("--validate_label", choices=['class', 'activity', 'y'], default='y', required=False,
                         help="Label to check model on.")
     parser.add_argument("--model_filename", required=False, default="raw", help="Dataset filename")
-    parser.add_argument("--validate_filename", required=False, default="decoy", help="Validate filename")
+    parser.add_argument("--validate_filename", required=False, default="raw", help="Validate filename")
     parser.add_argument("--threshold", required=False, default="0.5", help="Threshold")
 
     args = parser.parse_args()

@@ -6,10 +6,10 @@
   - [2. Activating the Environment](#2-activating-the-environment)
   - [3. Alternative: Using requirements.txt](#3-alternative-using-requirementstxt)
 - [Scripts](#scripts)
+  - [Model Training](#model-training)
+  - [Model Evaluation](#model-evaluation)
   - [Pharmacophore Alignment](#pharmacophore-alignment)
   - [Fidelity Analysis](#fidelity-analysis)
-  - [Model Evaluation](#model-evaluation)
-  - [Model Training](#model-training)
 - [Datasets](#datasets)
 
 
@@ -41,34 +41,21 @@ pip install -r requirements.txt
 
 ## Scripts
 
-### Pharmacophore Alignment
-_check_pharmacophore_allignment_and_sparsity.py_
+### Model Training
+_train{model}.py_
 
-This script checks the model interpretability in terms of pharmacophore alignment and sparsity.
-
-```sh
-python check_pharmacophore_allignment_and_sparsity.py --model <MODEL> --dataset <DATASET>
-```
-Arguments:  
-* model: The model type to load and generate predictions. Choices are RF, MLP, GCN, GCN_VG, XGB, MLP_VG.
-* dataset: The dataset choice. Default is cdk2.
-
-
-### Fidelity Analysis
-_check_fidelity_and_pharmacoscore.py_
-
-This script calculates model predictions and atom importance to further analyze model fidelity and pharmacophore score.
+The train_{model}.py scripts are used to train different models on a given dataset.
+It supports various models such as GCN, MLP, RF, and XGB. The script preprocesses
+the data, trains the model, and saves the best model based on validation performance.
 
 ```sh
-python fidelity/check_fidelity_and_pharmacoscore.py --model <MODEL> --dataset <DATASET> --model_label <MODEL_LABEL> --label <LABEL>
+python train_{model}.py --dataset 'cdk2' --label 'class'
 ```
 
 Arguments:
-* model: The model type to load and generate predictions. Choices are GCN, MLP, RF, XGB, MLP_VG, GCN_VG.
 * dataset: The dataset choice. Default is cdk2.
-* model_label: The model label column. Choices are class, activity. Default is class.
-* label: The Y label column. Choices are class, activity. Default is class.
-
+* label: The Y label column. Choices are class, activity, y. Default is y.
+* filename: Filename of dataset, for example _raw_ or _decoy_.
 
 ### Model Evaluation
 _check_model.py_
@@ -87,29 +74,48 @@ Arguments:
 * model: The model type to load and generate predictions. Choices are GCN, MLP, RF, XGB.
 * model_dataset: The dataset used to train the model.
 * validate_dataset: The dataset used for validation.
-* model_label: The model label column. Choices are class, activity. Default is class.
-* validate_label: The Y label column for validation. Choices are class, activity. Default is class.
+* model_label: The model label column. Choices are class, activity, y. Default is y.
+* validate_label: The Y label column for validation. Choices are class, activity, y. Default is y.
+* model_filename: Filename of training dataset, for example raw.
+* validate_filename: Filename of validate dataset, for example decoy.
+* threshold: threshold to count metrics. By default it is 0.5.
 
-### Model Training
-_train{model}.py_
+### Pharmacophore Alignment
+_check_pharmacophore_allignment_and_sparsity.py_
 
-The train_{model}.py scripts are used to train different models on a given dataset.
-It supports various models such as GCN, MLP, RF, and XGB. The script preprocesses
-the data, trains the model, and saves the best model based on validation performance.
+This script checks the model interpretability in terms of pharmacophore alignment and sparsity.
 
 ```sh
-python train_{model}.py --dataset 'cdk2' --label 'class'
+python check_pharmacophore_allignment_and_sparsity.py --model <MODEL> --dataset <DATASET>
+```
+Arguments:  
+* model: The model type to load and generate predictions. Choices are RF, MLP, GCN, GCN_VG, XGB, MLP_VG.
+* dataset: The dataset choice. Default is cdk2.
+* label: The training label column. Choices are class, activity, y. Default is y.
+* filename: Filename of dataset, for example raw.
+
+
+### Fidelity Analysis
+_check_fidelity_and_pharmacoscore.py_
+
+This script calculates model predictions and atom importance to further analyze model fidelity and pharmacophore score.
+
+```sh
+python fidelity/check_fidelity_and_pharmacoscore.py --model <MODEL> --dataset <DATASET> --model_label <MODEL_LABEL> --label <LABEL>
 ```
 
 Arguments:
+* model: The model type to load and generate predictions. Choices are GCN, MLP, RF, XGB, MLP_VG, GCN_VG.
 * dataset: The dataset choice. Default is cdk2.
-* label: The Y label column. Choices are class, activity. Default is class.
+* model_label: The model label column. Choices are class, activity, y. Default is y.
+* label: The Y label column. Choices are class, activity, y. Default is y.
+* filename: Filename of dataset, for example raw.
 
 ## Datasets
 
 The datasets contains the following files:
 * pharmacophore_labels.parquet: Contains the pharmacophore labels for checking pharmacophore allignment.
-* raw.parquet: Contains the raw data used for training and validating models, with labels: class, activity. Training is based 
+* raw.parquet: Contains the raw data used for training and validating models, with labels: class, activity, y. Training is based 
 on ECFP_2 column, based on Morgan fingerprint without count and with radius 2.
 * graph_data_class.p: Contains the graph data for the class model used by GCN.
 * graph_data_activity.p: Contains the graph data for the activity model used by GCN.

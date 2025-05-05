@@ -21,7 +21,8 @@ from gcn_model import GCN
 from mlp_model import MLP
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = "cpu"
 fingerprint_col = 'ECFP_2'
 
 def count_fidelity(fidelity_df):
@@ -289,7 +290,8 @@ def add_model_predictions_and_atom_importance_to_df(df, model, model_name, label
             row = df.iloc[i]
             chembl_id = row["ID"]
             bit_info = row["bit_info"]
-            molecule_shap_values = [sv[1] for sv in shap_values[i]]
+            # molecule_shap_values = [sv[1] for sv in shap_values[i]]
+            molecule_shap_values = [sv for sv in shap_values[i]]
 
             atom_data = {}
 
@@ -375,7 +377,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Calculate model predictions and atom importance to "
                                                  "further analysis of model fidelity and pharmacophore score.")
     parser.add_argument("--model", choices=['GCN', 'MLP', 'RF', 'XGB', 'MLP_VG', 'GCN_VG'],
-                        default='RF', required=False, help="Model type to load and generate predictions.")
+                        default='MLP', required=False, help="Model type to load and generate predictions.")
     parser.add_argument("--dataset", default="cdk2", required=False, help="Dataset choice.")
     parser.add_argument("--model_label", choices=['class', 'activity', 'y'], default='y', required=False, help="Y label column")
     parser.add_argument("--label", choices=['class', 'activity', 'y'], default='y', required=False, help="Y label column")
