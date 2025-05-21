@@ -19,7 +19,8 @@ from gcn_model import GCN
 from mlp_model import MLP
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = "cpu"
 
 def load_gcn_model(dataset):
     checkpoint = torch.load(f"../train_model/best_models/{dataset}/class/gcn/best_model.pth", weights_only=False)
