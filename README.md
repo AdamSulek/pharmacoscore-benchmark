@@ -1,6 +1,6 @@
 # pharmacoscore-benchmark
 
-This code accompanies the research presented in our ICCS 2025 paper, *"Explainable Artificial Intelligence for Bioactivity Prediction: Unveiling the Challenges with Curated CDK2/4/6 Breast Cancer Dataset"* ([Paper PDF](https://www.iccs-meeting.org/archive/iccs2025/papers/159030021.pdf)).
+This repository accompanies our ICCS 2025 paper, *"Explainable Artificial Intelligence for Bioactivity Prediction: Unveiling the Challenges with Curated CDK2/4/6 Breast Cancer Dataset"* ([PDF](https://www.iccs-meeting.org/archive/iccs2025/papers/159030021.pdf)).
 
 ## Table of Contents
 - [Run Instructions](#run-instructions)
